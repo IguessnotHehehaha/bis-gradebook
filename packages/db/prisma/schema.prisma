@@ -1,0 +1,120 @@
+// Electronic Gradebook data model (same 4 tables as the Task 9 plan, plus
+// enrollments, app_users (roles) and audit_log).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  STUDENT @map("student")
+  TEACHER @map("teacher")
+  ADMIN   @map("admin")
+
+  @@map("user_role")
+}
+
+/// One row per person who can sign in. `id` is the Supabase Auth user id.
+model AppUser {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  role      UserRole
+  studentId Int?     @unique @map("student_id")
+  teacherId Int?     @unique @map("teacher_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student Student?    @relation(fields: [studentId], references: [studentId])
+  teacher Teacher?    @relation(fields: [teacherId], references: [teacherId])
+  audits  AuditLog[]
+
+  @@map("app_users")
+}
+
+model Student {
+  studentId Int    @id @default(autoincrement()) @map("student_id")
+  fullName  String @map("full_name")
+  email     String @unique
+  groupName String @map("group_name")
+
+  user        AppUser?
+  enrollments Enrollment[]
+
+  @@map("students")
+}
+
+model Teacher {
+  teacherId  Int    @id @default(autoincrement()) @map("teacher_id")
+  fullName   String @map("full_name")
+  email      String @unique
+  department String
+
+  user    AppUser?
+  courses Course[]
+
+  @@map("teachers")
+}
+
+model Course {
+  courseId   Int    @id @default(autoincrement()) @map("course_id")
+  courseName String @map("course_name")
+  semester   String
+  teacherId  Int    @map("teacher_id")
+
+  teacher     Teacher      @relation(fields: [teacherId], references: [teacherId])
+  enrollments Enrollment[]
+
+  @@map("courses")
+}
+
+/// Which student takes which course. A grade can only exist for an enrolled student.
+model Enrollment {
+  studentId  Int      @map("student_id")
+  courseId   Int      @map("course_id")
+  enrolledAt DateTime @default(now()) @map("enrolled_at")
+
+  student Student @relation(fields: [studentId], references: [studentId])
+  course  Course  @relation(fields: [courseId], references: [courseId])
+  grades  Grade[]
+
+  @@id([studentId, courseId])
+  @@map("enrollments")
+}
+
+model Grade {
+  gradeId        Int      @id @default(autoincrement()) @map("grade_id")
+  studentId      Int      @map("student_id")
+  courseId       Int      @map("course_id")
+  assessmentName String   @map("assessment_name")
+  score          Decimal  @db.Decimal(5, 2)
+  gradeDate      DateTime @default(now()) @map("grade_date") @db.Date
+
+  // Composite foreign key: (student, course) must exist in enrollments.
+  enrollment Enrollment @relation(fields: [studentId, courseId], references: [studentId, courseId])
+
+  @@unique([studentId, courseId, assessmentName])
+  @@index([courseId])
+  @@map("grades")
+}
+
+/// Append-only history of grade changes (who, what, when).
+model AuditLog {
+  auditId        Int      @id @default(autoincrement()) @map("audit_id")
+  gradeId        Int?     @map("grade_id")
+  courseId       Int      @map("course_id")
+  studentId      Int      @map("student_id")
+  action         String
+  assessmentName String   @map("assessment_name")
+  oldScore       Decimal? @map("old_score") @db.Decimal(5, 2)
+  newScore       Decimal? @map("new_score") @db.Decimal(5, 2)
+  changedBy      String   @map("changed_by") @db.Uuid
+  changedAt      DateTime @default(now()) @map("changed_at")
+
+  user AppUser @relation(fields: [changedBy], references: [id])
+
+  @@index([courseId])
+  @@map("audit_log")
+}

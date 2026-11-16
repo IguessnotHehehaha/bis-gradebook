@@ -1,0 +1,37 @@
+{
+  "name": "@gradebook/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "seed": "dotenv -e ../../.env -- tsx scripts/seed.ts",
+    "seed:clear": "dotenv -e ../../.env -- tsx scripts/seed.ts --clear",
+    "backup": "dotenv -e ../../.env -- tsx scripts/backup.ts once",
+    "backup:watch": "dotenv -e ../../.env -- tsx scripts/backup.ts watch",
+    "backup:verify": "dotenv -e ../../.env -- tsx scripts/backup.ts verify",
+    "backup:test-restore": "dotenv -e ../../.env -- tsx scripts/backup.ts test-restore",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "@supabase/supabase-js": "^2.100.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "7.10.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  }
+}

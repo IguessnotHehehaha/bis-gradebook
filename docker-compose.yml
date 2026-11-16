@@ -1,0 +1,44 @@
+# Optional helpers. The app itself runs with `npm run dev` and talks to Supabase.
+#
+#   docker compose up -d backup_db            -> the separate BACKUP database (port 5433)
+#   docker compose --profile local up -d      -> also a local main database (port 5432)
+#                                                for working without a Supabase project
+#
+# Use the same Postgres major version as your Supabase project (Dashboard -> Settings -> Infrastructure).
+services:
+  backup_db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: gradebook_backup
+      POSTGRES_USER: backup
+      POSTGRES_PASSWORD: backup_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - backup_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backup -d gradebook_backup"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  local_db:
+    profiles: ["local"]
+    image: postgres:17
+    environment:
+      POSTGRES_DB: gradebook
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - local_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gradebook"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  backup_db_data:
+  local_db_data:

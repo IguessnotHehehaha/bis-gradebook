@@ -1,0 +1,24 @@
+{
+  "name": "gradebook",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electronic Gradebook: Next.js + Prisma + Supabase monorepo",
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "postinstall": "npm run generate -w @gradebook/db",
+    "dev": "npm run dev -w @gradebook/web",
+    "build": "npm run build -w @gradebook/web",
+    "start": "npm run start -w @gradebook/web",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "npm run generate -w @gradebook/db",
+    "db:migrate": "npm run migrate -w @gradebook/db",
+    "db:seed": "npm run seed -w @gradebook/db",
+    "db:seed:clear": "npm run seed:clear -w @gradebook/db",
+    "backup": "npm run backup -w @gradebook/db",
+    "backup:watch": "npm run backup:watch -w @gradebook/db",
+    "backup:verify": "npm run backup:verify -w @gradebook/db",
+    "backup:test-restore": "npm run backup:test-restore -w @gradebook/db"
+  }
+}
