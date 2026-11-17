@@ -103,3 +103,48 @@ td.cell.bad input { border-color: var(--low); }
 .state.err { color: var(--low); max-width: 12rem; margin-left: auto; text-align: right; }
 .avgcell { font-weight: 600; white-space: nowrap; }
 .addcol { max-width: 380px; }
+
+/* ---------- Usability polish ---------- */
+html { scroll-behavior: smooth; }
+body { -webkit-font-smoothing: antialiased; }
+.topbar { position: sticky; top: 0; z-index: 10; }
+.page > h1 + .muted, .page > div > h1 + .muted { margin-top: 0.15rem; }
+button.link:hover { color: var(--brand); }
+button.primary { transition: background .15s; }
+button.primary:disabled { opacity: .6; cursor: not-allowed; }
+tbody tr:hover td, tbody tr:hover th { background: #f8fafb; }
+.gradegrid tbody tr:hover td:first-child, .gradegrid tbody tr:hover th:first-child { background: #f8fafb; }
+.low { color: var(--low); }
+.tile .big.low { color: var(--low); }
+.block { display: block; }
+.section-title { margin-top: 0.5rem; }
+.card[id] { scroll-margin-top: 4.5rem; }
+tfoot th, tfoot td { border-top: 2px solid var(--line); border-bottom: none; font-weight: 700; background: #fafbfc; }
+.tag.good { background: var(--brand-soft); color: var(--ok); }
+.tag.nomargin { margin-left: 0; white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+.card > .table-wrap, .course-body .table-wrap { padding: 0; }
+
+/* Student: table + chart side by side */
+.course-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.chart { margin: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-axis { fill: var(--muted); font-size: 10px; }
+.chart-value { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.chart-bar { fill: var(--brand); }
+.chart-bar.low { fill: var(--low); }
+.chart-pass { stroke: var(--low); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.chart-pass-label { fill: var(--low); font-size: 10px; }
+
+@media (max-width: 760px) {
+  .course-body { grid-template-columns: 1fr; }
+  .topbar { padding: 0.7rem 1rem; }
+  .page { padding: 1rem; }
+  h1 { font-size: 1.5rem; }
+  .row.between { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}
