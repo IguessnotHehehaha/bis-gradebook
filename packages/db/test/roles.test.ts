@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getTeacherCourses } from "../src";
+import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getTeacherCourses, createAssessment } from "../src";
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const run = enabled ? describe : describe.skip;
@@ -22,7 +22,7 @@ const U = {
 beforeAll(async () => {
   if (!enabled) return;
   await prisma.$executeRawUnsafe(
-    "TRUNCATE audit_log, grades, enrollments, app_users, courses, students, teachers RESTART IDENTITY CASCADE",
+    "TRUNCATE audit_log, grades, assessments, enrollments, app_users, courses, students, teachers, student_groups RESTART IDENTITY CASCADE",
   );
   await prisma.teacher.createMany({
     data: [
@@ -30,11 +30,12 @@ beforeAll(async () => {
       { fullName: "Teacher Two", email: "t2@x.kz", department: "Math" },
     ],
   });
+  await prisma.studentGroup.createMany({ data: [{ groupName: "G1" }, { groupName: "G2" }] });
   await prisma.student.createMany({
     data: [
-      { fullName: "Student One", email: "s1@x.kz", groupName: "G1" },
-      { fullName: "Student Two", email: "s2@x.kz", groupName: "G1" },
-      { fullName: "Student Three", email: "s3@x.kz", groupName: "G2" },
+      { fullName: "Student One", email: "s1@x.kz", groupId: 1 },
+      { fullName: "Student Two", email: "s2@x.kz", groupId: 1 },
+      { fullName: "Student Three", email: "s3@x.kz", groupId: 2 },
     ],
   });
   await prisma.course.createMany({
@@ -50,11 +51,15 @@ beforeAll(async () => {
       { studentId: 2, courseId: 2 },
     ],
   });
+  await prisma.assessment.createMany({ data: [
+    { courseId: 1, assessmentName: "Quiz 1" },
+    { courseId: 2, assessmentName: "Quiz 1" },
+  ] });
   await prisma.grade.createMany({
     data: [
-      { studentId: 1, courseId: 1, assessmentName: "Quiz 1", score: 40 },
-      { studentId: 2, courseId: 1, assessmentName: "Quiz 1", score: 80 },
-      { studentId: 2, courseId: 2, assessmentName: "Quiz 1", score: 60 },
+      { studentId: 1, courseId: 1, assessmentId: 1, score: 40 },
+      { studentId: 2, courseId: 1, assessmentId: 1, score: 80 },
+      { studentId: 2, courseId: 2, assessmentId: 2, score: 60 },
     ],
   });
   await prisma.appUser.createMany({
@@ -96,7 +101,7 @@ run("student role", () => {
   it("cannot add a grade", async () => {
     await expect(
       withUser(U.s1, (tx) =>
-        tx.grade.create({ data: { studentId: 1, courseId: 1, assessmentName: "Hack", score: 100 } }),
+        tx.grade.create({ data: { studentId: 1, courseId: 1, assessmentId: 1, score: 100 } }),
       ),
     ).rejects.toThrow();
   });
@@ -144,7 +149,7 @@ run("teacher role", () => {
   it("can add a new assessment for an enrolled student", async () => {
     const res = await saveGradeScore(U.t1, { studentId: 2, courseId: 1, assessmentName: "Midterm", score: 71.5 });
     expect(res.ok).toBe(true);
-    const g = await prisma.grade.findFirstOrThrow({ where: { assessmentName: "Midterm" } });
+    const g = await prisma.grade.findFirstOrThrow({ where: { assessment: { assessmentName: "Midterm" } } });
     expect(g.score.toNumber()).toBe(71.5);
   });
 
@@ -211,25 +216,25 @@ run("admin role", () => {
 run("database rules", () => {
   it("rejects a score above 100 at the database level", async () => {
     await expect(
-      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentName: "Bad", score: 100.01 } }),
+      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentId: 1, score: 100.01 } }),
     ).rejects.toThrow();
   });
 
   it("rejects a negative score at the database level", async () => {
     await expect(
-      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentName: "Bad", score: -1 } }),
+      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentId: 1, score: -1 } }),
     ).rejects.toThrow();
   });
 
   it("rejects a second grade with the same assessment name", async () => {
     await expect(
-      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentName: "Quiz 1", score: 10 } }),
+      prisma.grade.create({ data: { studentId: 1, courseId: 1, assessmentId: 1, score: 10 } }),
     ).rejects.toThrow();
   });
 
   it("rejects a grade for a student who is not enrolled (composite foreign key)", async () => {
     await expect(
-      prisma.grade.create({ data: { studentId: 1, courseId: 2, assessmentName: "Orphan", score: 10 } }),
+      prisma.grade.create({ data: { studentId: 1, courseId: 2, assessmentId: 2, score: 10 } }),
     ).rejects.toThrow();
   });
 
@@ -245,5 +250,27 @@ run("database rules", () => {
         return tx.grade.findMany();
       }),
     ).rejects.toThrow();
+  });
+});
+
+run("normalized tables", () => {
+  it("persists an assessment without grades", async () => {
+    expect(await createAssessment(U.t1, 1, "Empty assessment")).toEqual({ ok: true });
+    expect((await getGradebook(U.t1, 1))?.assessments).toContain("Empty assessment");
+  });
+  it("does not let a student create assessments", async () => {
+    expect((await createAssessment(U.s1, 1, "Student assessment")).ok).toBe(false);
+  });
+  it("does not let a teacher create assessments in another course", async () => {
+    expect((await createAssessment(U.t1, 2, "Other assessment")).ok).toBe(false);
+  });
+  it("rejects an assessment from a different course even for an enrolled student", async () => {
+    await expect(prisma.grade.create({ data: { studentId: 2, courseId: 1, assessmentId: 2, score: 80 } })).rejects.toThrow();
+  });
+  it("reads group names through the relation", async () => {
+    expect((await getGradebook(U.t1, 1))?.students[0].groupName).toBe("G1");
+  });
+  it("rejects a nonexistent group", async () => {
+    await expect(prisma.student.create({ data: { fullName: "Invalid", email: "invalid@x.kz", groupId: 999999 } })).rejects.toThrow();
   });
 });
