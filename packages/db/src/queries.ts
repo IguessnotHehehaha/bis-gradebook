@@ -186,21 +186,25 @@ export async function saveGradeScore(
 export interface AdminOverview {
   counts: { students: number; teachers: number; courses: number; enrollments: number; grades: number };
   courses: { courseId: number; courseName: string; semester: string; teacherName: string; enrolled: number }[];
-  students: { studentId: number; fullName: string }[];
-  people: { email: string; role: string; name: string }[];
+  students: { studentId: number; fullName: string; email: string; groupName: string }[];
+  grades: { gradeId: number; studentName: string; courseName: string; assessmentName: string; score: number; gradeDate: string }[];
+  teachers: { teacherId: number; fullName: string }[];
+  groups: { groupId: number; groupName: string }[];
+  people: { id: string; email: string; role: string; name: string }[];
 }
 
 export async function getAdminOverview(userId: string): Promise<AdminOverview> {
   return withUser(userId, async (tx) => {
-    const [students, teachers, courses, enrollments, grades, users] = await Promise.all([
-      tx.student.findMany({ orderBy: { fullName: "asc" } }),
-      tx.teacher.findMany(),
+    const [students, teachers, groups, courses, enrollments, grades, users] = await Promise.all([
+      tx.student.findMany({ include: { group: true }, orderBy: { fullName: "asc" } }),
+      tx.teacher.findMany({ orderBy: { fullName: "asc" } }),
+      tx.studentGroup.findMany({ orderBy: { groupName: "asc" } }),
       tx.course.findMany({
         include: { teacher: true, _count: { select: { enrollments: true } } },
         orderBy: { courseId: "asc" },
       }),
       tx.enrollment.count(),
-      tx.grade.count(),
+      tx.grade.findMany({ include: { assessment: true, enrollment: { include: { course: true, student: true } } }, orderBy: [{ courseId: "asc" }, { studentId: "asc" }, { gradeId: "asc" }] }),
       tx.appUser.findMany({ include: { student: true, teacher: true }, orderBy: [{ role: "asc" }, { email: "asc" }] }),
     ]);
     return {
@@ -209,7 +213,7 @@ export async function getAdminOverview(userId: string): Promise<AdminOverview> {
         teachers: teachers.length,
         courses: courses.length,
         enrollments,
-        grades,
+        grades: grades.length,
       },
       courses: courses.map((c) => ({
         courseId: c.courseId,
@@ -218,13 +222,60 @@ export async function getAdminOverview(userId: string): Promise<AdminOverview> {
         teacherName: c.teacher.fullName,
         enrolled: c._count.enrollments,
       })),
-      students: students.map((s) => ({ studentId: s.studentId, fullName: s.fullName })),
+      students: students.map((s) => ({ studentId: s.studentId, fullName: s.fullName, email: s.email, groupName: s.group.groupName })),
+      grades: grades.map((g) => ({
+        gradeId: g.gradeId,
+        studentName: g.enrollment.student.fullName,
+        courseName: g.enrollment.course.courseName,
+        assessmentName: g.assessment.assessmentName,
+        score: g.score.toNumber(),
+        gradeDate: iso(g.gradeDate),
+      })),
+      teachers: teachers.map((t) => ({ teacherId: t.teacherId, fullName: t.fullName })),
+      groups: groups.map((g) => ({ groupId: g.groupId, groupName: g.groupName })),
       people: users.map((u) => ({
+        id: u.id,
         email: u.email,
         role: u.role.toLowerCase(),
         name: u.student?.fullName ?? u.teacher?.fullName ?? "Administrator",
       })),
     };
+  });
+}
+
+export async function createManagedStudent(userId: string, input: { id: string; email: string; name: string; groupId: number }) {
+  return withUser(userId, async (tx) => {
+    const student = await tx.student.create({ data: { email: input.email, fullName: input.name, groupId: input.groupId } });
+    await tx.appUser.create({ data: { id: input.id, email: input.email, role: "STUDENT", studentId: student.studentId } });
+    return student.studentId;
+  });
+}
+
+export async function createManagedTeacher(userId: string, input: { id: string; email: string; name: string; department: string }) {
+  return withUser(userId, async (tx) => {
+    const teacher = await tx.teacher.create({ data: { email: input.email, fullName: input.name, department: input.department } });
+    await tx.appUser.create({ data: { id: input.id, email: input.email, role: "TEACHER", teacherId: teacher.teacherId } });
+    return teacher.teacherId;
+  });
+}
+
+export async function createManagedCourse(userId: string, input: { courseName: string; semester: string; teacherId: number }) {
+  return withUser(userId, (tx) => tx.course.create({ data: input }));
+}
+
+export async function deleteManagedUser(userId: string, targetId: string) {
+  return withUser(userId, async (tx) => {
+    if (userId === targetId) throw new Error("You cannot delete your own account.");
+    const target = await tx.appUser.findUnique({ where: { id: targetId } });
+    if (!target) throw new Error("This user no longer exists.");
+    if (target.role === "ADMIN" && await tx.appUser.count({ where: { role: "ADMIN" } }) <= 1) {
+      throw new Error("The last administrator cannot be deleted.");
+    }
+    if (await tx.auditLog.count({ where: { changedBy: targetId } })) {
+      throw new Error("This account is referenced by the grade change history and cannot be deleted.");
+    }
+    await tx.appUser.delete({ where: { id: targetId } });
+    return { email: target.email };
   });
 }
 

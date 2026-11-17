@@ -79,7 +79,7 @@ The rules are enforced by the database itself, not only by the screens. Even if 
 - Status: Done.
 
 **US-16 · Manage accounts from the screen.** As an administrator, I want to create and remove users in the app.
-- Status: Planned. For now accounts are created by the seed command or in Supabase.
+- Status: Done. Admins can add student/teacher profiles and accounts, add courses, and delete eligible accounts. The current/last admin and accounts referenced by grade audit history are protected; academic records remain after account deletion.
 
 ### E. Trust in the data
 
@@ -121,7 +121,7 @@ The rules are enforced by the database itself, not only by the screens. Even if 
 
 ## 4. Not in scope (yet)
 
-Password reset screens, creating users in the app, a screen for the change history, exporting grades, notifications.
+Password reset screens, creating administrator accounts in the app, a screen for the change history, exporting grades, notifications.
 
 ## 5. Where each story is checked
 
