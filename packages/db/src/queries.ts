@@ -49,13 +49,15 @@ export interface TeacherCourseSummary {
   studentCount: number;
   gradeCount: number;
   lowCount: number;
+  assessmentCount: number;
+  average: number | null;
 }
 
 export async function getTeacherCourses(userId: string, teacherId: number): Promise<TeacherCourseSummary[]> {
   return withUser(userId, async (tx) => {
     const courses = await tx.course.findMany({
       where: { teacherId },
-      include: { _count: { select: { enrollments: true } } },
+      include: { _count: { select: { enrollments: true, assessments: true } } },
       orderBy: { courseId: "asc" },
     });
     const grades = await tx.grade.findMany({
@@ -71,6 +73,10 @@ export async function getTeacherCourses(userId: string, teacherId: number): Prom
         studentCount: c._count.enrollments,
         gradeCount: mine.length,
         lowCount: mine.filter((g) => g.score.toNumber() < PASS_MARK).length,
+        assessmentCount: c._count.assessments,
+        average: mine.length
+          ? Math.round((mine.reduce((sum, g) => sum + g.score.toNumber(), 0) / mine.length) * 10) / 10
+          : null,
       };
     });
   });
