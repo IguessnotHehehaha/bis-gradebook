@@ -21,7 +21,7 @@ export default async function GradebookPage({ params }: { params: Promise<{ cour
           <Link href="/teacher">← My courses</Link>
         </p>
         <h1>{book.course.courseName}</h1>
-        <p className="muted">{book.course.semester}</p>
+        <p className="muted">{book.course.semester} · {book.students.length} students enrolled</p>
       </div>
       <GradeGrid
         courseId={book.course.courseId}

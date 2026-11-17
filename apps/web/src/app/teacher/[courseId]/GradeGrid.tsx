@@ -19,9 +19,11 @@ function ScoreCell(props: {
   studentId: number;
   assessment: string;
   value: number | undefined;
+  row: number;
+  col: number;
   onSaved: (studentId: number, assessment: string, score: number) => void;
 }) {
-  const { courseId, studentId, assessment, value, onSaved } = props;
+  const { courseId, studentId, assessment, value, row, col, onSaved } = props;
   const shown = value === undefined ? "" : String(value);
   const [text, setText] = useState(shown);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -47,7 +49,13 @@ function ScoreCell(props: {
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") e.currentTarget.blur();
+    if (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const delta = e.key === "ArrowUp" ? -1 : 1;
+      const next = document.querySelector<HTMLInputElement>(`input[data-r="${row + delta}"][data-c="${col}"]`);
+      e.preventDefault();
+      if (next) next.focus();
+      else if (e.key === "Enter") e.currentTarget.blur();
+    }
     if (e.key === "Escape") {
       setText(shown);
       setStatus("idle");
@@ -62,6 +70,9 @@ function ScoreCell(props: {
         inputMode="decimal"
         placeholder="–"
         aria-label={`${assessment} score`}
+        data-r={row}
+        data-c={col}
+        onFocus={(e) => e.currentTarget.select()}
         aria-invalid={status === "error"}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
@@ -86,13 +97,24 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
   const [newName, setNewName] = useState("");
   const [formError, setFormError] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
+  const [query, setQuery] = useState("");
+  const [group, setGroup] = useState("");
 
   const columns = [...new Set([...assessments, ...extra])];
   const values = Object.values(scores);
   const lowTotal = values.filter(isLow).length;
   const hasLow = (studentId: number) =>
     columns.some((a) => scores[key(studentId, a)] !== undefined && isLow(scores[key(studentId, a)]));
-  const visible = onlyLow ? students.filter((s) => hasLow(s.studentId)) : students;
+  const groups = [...new Set(students.map((s) => s.groupName))].sort();
+  const visible = students.filter(
+    (s) =>
+      (!onlyLow || hasLow(s.studentId)) &&
+      (!group || s.groupName === group) &&
+      s.fullName.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const overallAvg = average(values);
+  const colAvg = (a: string) =>
+    average(students.map((s) => scores[key(s.studentId, a)]).filter((v): v is number => v !== undefined));
 
   async function addColumn(e: FormEvent) {
     e.preventDefault();
@@ -116,15 +138,33 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
 
   return (
     <div className="stack">
-      <div className="toolbar">
-        <p className="stats">
-          <span><b>{students.length}</b> students</span>
-          <span><b>{values.length}</b> grades</span>
-          <span className={lowTotal ? "low-text" : ""}><b>{lowTotal}</b> below {PASS_MARK}</span>
-        </p>
+      <div className="tiles">
+        <div className="card tile"><p className="big">{students.length}</p><p className="muted">Students</p></div>
+        <div className="card tile"><p className="big">{columns.length}</p><p className="muted">Assessments</p></div>
+        <div className="card tile"><p className="big">{overallAvg ?? "–"}</p><p className="muted">Course average</p></div>
+        <div className="card tile">
+          <p className={"big" + (lowTotal ? " low" : "")}>{lowTotal}</p>
+          <p className="muted">Below {PASS_MARK}</p>
+        </div>
+      </div>
+
+      <div className="toolbar card">
+        <label className="grow">
+          Find a student
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type a name…" />
+        </label>
+        <label>
+          Group
+          <select value={group} onChange={(e) => setGroup(e.target.value)}>
+            <option value="">All groups</option>
+            {groups.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </label>
         <label className="check">
           <input type="checkbox" checked={onlyLow} onChange={(e) => setOnlyLow(e.target.checked)} />
-          Only students with a result below {PASS_MARK}
+          Only results below {PASS_MARK}
         </label>
       </div>
 
@@ -140,16 +180,18 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
             </tr>
           </thead>
           <tbody>
-            {visible.map((s) => {
+            {visible.map((s, row) => {
               const own = columns.map((a) => scores[key(s.studentId, a)]).filter((v): v is number => v !== undefined);
               return (
                 <tr key={s.studentId}>
                   <th scope="row">
                     {s.fullName} <span className="muted small">{s.groupName}</span>
                   </th>
-                  {columns.map((a) => (
+                  {columns.map((a, col) => (
                     <ScoreCell
                       key={a}
+                      row={row}
+                      col={col}
                       courseId={courseId}
                       studentId={s.studentId}
                       assessment={a}
@@ -157,18 +199,31 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
                       onSaved={(sid, assessment, score) => setScores((prev) => ({ ...prev, [key(sid, assessment)]: score }))}
                     />
                   ))}
-                  <td className="num avgcell">{average(own) ?? "–"}</td>
+                  <td className={"num avgcell" + (average(own) !== null && isLow(average(own)!) ? " low" : "")}>{average(own) ?? "–"}</td>
                 </tr>
               );
             })}
             {visible.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 2} className="muted">
-                  {onlyLow ? `Nobody has a result below ${PASS_MARK}.` : "No students are enrolled in this course yet."}
+                  {students.length === 0
+                    ? "No students are enrolled in this course yet."
+                    : "No students match these filters."}
                 </td>
               </tr>
             )}
           </tbody>
+          {visible.length > 0 && (
+            <tfoot>
+              <tr>
+                <th scope="row">Average of all students</th>
+                {columns.map((c) => (
+                  <td key={c} className="num">{colAvg(c) ?? "–"}</td>
+                ))}
+                <td className="num avgcell">{overallAvg ?? "–"}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -188,7 +243,7 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
       </form>
 
       <p className="hint">
-        Click a score to change it; it saves when you press Enter or click away. ▼ and red mean below {PASS_MARK}.
+        Click a score to change it. It saves when you press Enter or click away; ↑ ↓ move between students. ▼ and red mean below {PASS_MARK}.
         Only students enrolled in this course appear here.
       </p>
     </div>
