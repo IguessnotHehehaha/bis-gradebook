@@ -1,6 +1,7 @@
 # Electronic Gradebook (TypeScript monorepo)
 
 Next.js + React web app, Prisma ORM, Supabase (Postgres + Auth). Roles (student / teacher / admin) are enforced inside the database with Row Level Security.
+Normalization update: [docs/NORMALIZATION.md](docs/NORMALIZATION.md).
 Plain-language requirements: [docs/USER_STORIES.md](docs/USER_STORIES.md).
 
 ```

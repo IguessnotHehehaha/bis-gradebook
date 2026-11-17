@@ -1,5 +1,4 @@
-// Electronic Gradebook data model (same 4 tables as the Task 9 plan, plus
-// enrollments, app_users (roles) and audit_log).
+// Electronic Gradebook with normalized assessments and student groups.
 
 generator client {
   provider = "prisma-client"
@@ -38,12 +37,22 @@ model Student {
   studentId Int    @id @default(autoincrement()) @map("student_id")
   fullName  String @map("full_name")
   email     String @unique
-  groupName String @map("group_name")
+  groupId   Int    @map("group_id")
+  group     StudentGroup @relation(fields: [groupId], references: [groupId])
 
   user        AppUser?
   enrollments Enrollment[]
 
+  @@index([groupId])
   @@map("students")
+}
+
+model StudentGroup {
+  groupId Int @id @default(autoincrement()) @map("group_id")
+  groupName String @unique @map("group_name")
+  students Student[]
+
+  @@map("student_groups")
 }
 
 model Teacher {
@@ -64,6 +73,7 @@ model Course {
   semester   String
   teacherId  Int    @map("teacher_id")
 
+  assessments Assessment[]
   teacher     Teacher      @relation(fields: [teacherId], references: [teacherId])
   enrollments Enrollment[]
 
@@ -84,18 +94,31 @@ model Enrollment {
   @@map("enrollments")
 }
 
+model Assessment {
+  assessmentId Int @id @default(autoincrement()) @map("assessment_id")
+  courseId Int @map("course_id")
+  assessmentName String @map("assessment_name")
+  course Course @relation(fields: [courseId], references: [courseId])
+  grades Grade[]
+
+  @@unique([courseId, assessmentName])
+  @@unique([assessmentId, courseId])
+  @@map("assessments")
+}
+
 model Grade {
   gradeId        Int      @id @default(autoincrement()) @map("grade_id")
   studentId      Int      @map("student_id")
   courseId       Int      @map("course_id")
-  assessmentName String   @map("assessment_name")
+  assessmentId   Int      @map("assessment_id")
+  assessment Assessment @relation(fields: [assessmentId, courseId], references: [assessmentId, courseId])
   score          Decimal  @db.Decimal(5, 2)
   gradeDate      DateTime @default(now()) @map("grade_date") @db.Date
 
   // Composite foreign key: (student, course) must exist in enrollments.
   enrollment Enrollment @relation(fields: [studentId, courseId], references: [studentId, courseId])
 
-  @@unique([studentId, courseId, assessmentName])
+  @@unique([studentId, assessmentId])
   @@index([courseId])
   @@map("grades")
 }

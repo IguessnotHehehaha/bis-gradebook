@@ -24,7 +24,7 @@ export async function getStudentGrades(userId: string, studentId: number): Promi
   return withUser(userId, async (tx) => {
     const rows = await tx.grade.findMany({
       where: { studentId },
-      include: { enrollment: { include: { course: { include: { teacher: true } } } } },
+      include: { assessment: true, enrollment: { include: { course: { include: { teacher: true } } } } },
       orderBy: [{ courseId: "asc" }, { gradeId: "asc" }],
     });
     return rows.map((g) => ({
@@ -33,7 +33,7 @@ export async function getStudentGrades(userId: string, studentId: number): Promi
       courseName: g.enrollment.course.courseName,
       semester: g.enrollment.course.semester,
       teacherName: g.enrollment.course.teacher.fullName,
-      assessmentName: g.assessmentName,
+      assessmentName: g.assessment.assessmentName,
       score: g.score.toNumber(),
       gradeDate: iso(g.gradeDate),
     }));
@@ -92,15 +92,14 @@ export async function getGradebook(userId: string, courseId: number): Promise<Gr
   return withUser(userId, async (tx) => {
     const course = await tx.course.findUnique({
       where: { courseId },
-      include: { enrollments: { include: { student: true }, orderBy: { student: { fullName: "asc" } } } },
+      include: { assessments: { orderBy: { assessmentId: "asc" } }, enrollments: { include: { student: { include: { group: true } } }, orderBy: { student: { fullName: "asc" } } } },
     });
     if (!course) return null;
-    const grades = await tx.grade.findMany({ where: { courseId }, orderBy: { gradeId: "asc" } });
-    const assessments: string[] = [];
+    const grades = await tx.grade.findMany({ where: { courseId }, include: { assessment: true }, orderBy: { gradeId: "asc" } });
+    const assessments = course.assessments.map((a) => a.assessmentName);
     const scores: Record<string, number> = {};
     for (const g of grades) {
-      if (!assessments.includes(g.assessmentName)) assessments.push(g.assessmentName);
-      scores[scoreKey(g.studentId, g.assessmentName)] = g.score.toNumber();
+      scores[scoreKey(g.studentId, g.assessment.assessmentName)] = g.score.toNumber();
     }
     return {
       course: {
@@ -112,7 +111,7 @@ export async function getGradebook(userId: string, courseId: number): Promise<Gr
       students: course.enrollments.map((e) => ({
         studentId: e.student.studentId,
         fullName: e.student.fullName,
-        groupName: e.student.groupName,
+        groupName: e.student.group.groupName,
       })),
       assessments,
       scores,
@@ -143,15 +142,20 @@ export async function saveGradeScore(
   const { studentId, courseId, assessmentName, score } = input;
   try {
     return await withUser(userId, async (tx) => {
+      const assessment = await tx.assessment.upsert({
+        where: { courseId_assessmentName: { courseId, assessmentName } },
+        update: {}, create: { courseId, assessmentName },
+      });
+      const assessmentId = assessment.assessmentId;
       const existing = await tx.grade.findUnique({
-        where: { studentId_courseId_assessmentName: { studentId, courseId, assessmentName } },
+        where: { studentId_assessmentId: { studentId, assessmentId } },
       });
       if (existing && existing.score.toNumber() === score) {
         return { ok: true as const, score, changed: false };
       }
       const grade = existing
         ? await tx.grade.update({ where: { gradeId: existing.gradeId }, data: { score } })
-        : await tx.grade.create({ data: { studentId, courseId, assessmentName, score } });
+        : await tx.grade.create({ data: { studentId, courseId, assessmentId, score } });
       await tx.auditLog.create({
         data: {
           gradeId: grade.gradeId,
@@ -231,5 +235,19 @@ export async function enrollStudent(
     if (/unique|duplicate|P2002/i.test(msg)) return { ok: false, error: "This student is already enrolled." };
     if (/row-level security/i.test(msg)) return { ok: false, error: "Only an administrator can enroll students." };
     return { ok: false, error: "Could not enroll the student." };
+  }
+}
+
+/** Persist an assessment even before any grades have been entered. */
+export async function createAssessment(userId: string, courseId: number, assessmentName: string) {
+  if (!Number.isInteger(courseId) || courseId <= 0 || !assessmentName.trim() || assessmentName.trim().length > 60) {
+    return { ok: false as const, error: "Enter a course and an assessment name (1–60 characters)." };
+  }
+  try {
+    await withUser(userId, (tx) => tx.assessment.create({ data: { courseId, assessmentName: assessmentName.trim() } }));
+    return { ok: true as const };
+  } catch (error) {
+    if (/unique|P2002/i.test(String(error))) return { ok: false as const, error: "That assessment already exists." };
+    return { ok: false as const, error: "Could not create the assessment. Check your course permissions." };
   }
 }

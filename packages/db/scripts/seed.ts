@@ -102,9 +102,11 @@ async function main() {
     await prisma.grade.deleteMany();
     await prisma.enrollment.deleteMany();
     await prisma.appUser.deleteMany();
+    await prisma.assessment.deleteMany();
     await prisma.course.deleteMany();
     await prisma.student.deleteMany();
     await prisma.teacher.deleteMany();
+    await prisma.studentGroup.deleteMany();
     console.log("Cleared existing data.");
   }
 
@@ -119,6 +121,9 @@ async function main() {
     courses.push(found ?? (await prisma.course.create({ data: { courseName, semester, teacherId: teachers[t].teacherId } })));
   }
 
+  const groups = await Promise.all(GROUPS.map((groupName) =>
+    prisma.studentGroup.upsert({ where: { groupName }, update: {}, create: { groupName } }),
+  ));
   const students = [];
   for (let i = 0; i < STUDENT_COUNT; i++) {
     const email = `student${String(i + 1).padStart(3, "0")}@univ.kz`;
@@ -129,7 +134,7 @@ async function main() {
         create: {
           fullName: `${FIRST[i % FIRST.length]} ${LAST[(i * 3) % LAST.length]}`,
           email,
-          groupName: GROUPS[i % GROUPS.length],
+          groupId: groups[i % groups.length].groupId,
         },
       }),
     );
@@ -144,10 +149,15 @@ async function main() {
       const howMany = 2 + Math.floor(rng() * 4);
       for (const assessmentName of ASSESSMENTS.slice(0, howMany)) {
         const score = Math.min(100, Math.max(0, Math.round(triangular(20, 100, 72) * 10) / 10));
-        const key = { studentId_courseId_assessmentName: { studentId: s.studentId, courseId: c.courseId, assessmentName } };
+        const assessment = await prisma.assessment.upsert({
+          where: { courseId_assessmentName: { courseId: c.courseId, assessmentName } },
+          update: {}, create: { courseId: c.courseId, assessmentName },
+        });
+        const assessmentId = assessment.assessmentId;
+        const key = { studentId_assessmentId: { studentId: s.studentId, assessmentId } };
         const before = await prisma.grade.findUnique({ where: key });
         if (!before) {
-          await prisma.grade.create({ data: { studentId: s.studentId, courseId: c.courseId, assessmentName, score } });
+          await prisma.grade.create({ data: { studentId: s.studentId, courseId: c.courseId, assessmentId, score } });
           newGrades++;
         }
       }

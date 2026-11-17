@@ -2,7 +2,7 @@
 
 import { PASS_MARK, average, isLow } from "@gradebook/shared";
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
-import { saveScoreAction } from "../actions";
+import { createAssessmentAction, saveScoreAction } from "../actions";
 
 interface Props {
   courseId: number;
@@ -82,24 +82,34 @@ function ScoreCell(props: {
 export function GradeGrid({ courseId, students, assessments, scores: initial }: Props) {
   const [scores, setScores] = useState(initial);
   const [extra, setExtra] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [formError, setFormError] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
 
-  const columns = [...assessments, ...extra];
+  const columns = [...new Set([...assessments, ...extra])];
   const values = Object.values(scores);
   const lowTotal = values.filter(isLow).length;
   const hasLow = (studentId: number) =>
     columns.some((a) => scores[key(studentId, a)] !== undefined && isLow(scores[key(studentId, a)]));
   const visible = onlyLow ? students.filter((s) => hasLow(s.studentId)) : students;
 
-  function addColumn(e: FormEvent) {
+  async function addColumn(e: FormEvent) {
     e.preventDefault();
+    if (adding) return;
     const name = newName.trim();
     if (!name) return;
     if (name.length > 60) return setFormError("Keep the name under 60 characters.");
     if (columns.some((c) => c.toLowerCase() === name.toLowerCase())) return setFormError("That assessment already exists.");
-    setExtra([...extra, name]);
+    setAdding(true);
+    try {
+      const result = await createAssessmentAction(courseId, name);
+      if (!result.ok) { setFormError(result.error); return; }
+      setExtra((previous) => [...previous, name]);
+    } catch {
+      setFormError("Could not save the assessment. Please try again.");
+      return;
+    } finally { setAdding(false); }
     setNewName("");
     setFormError("");
   }
@@ -169,9 +179,11 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="e.g. Midterm, then press Enter"
-            maxLength={80}
+            maxLength={60}
+            disabled={adding}
           />
         </label>
+        <button type="submit" className="primary" disabled={adding}>{adding ? "Saving…" : "Add assessment"}</button>
         {formError && <span className="error" role="alert">{formError}</span>}
       </form>
 

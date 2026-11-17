@@ -1,6 +1,6 @@
 "use server";
 
-import { saveGradeScore } from "@gradebook/db";
+import { createAssessment, saveGradeScore } from "@gradebook/db";
 import { saveScoreSchema, type SaveScoreInput } from "@gradebook/shared";
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/session";
@@ -22,4 +22,12 @@ export async function saveScoreAction(input: SaveScoreInput): Promise<SaveScoreR
   if (!res.ok) return { ok: false, error: res.error };
   revalidatePath("/teacher");
   return { ok: true, score: res.score };
+}
+
+export async function createAssessmentAction(courseId: number, assessmentName: string) {
+  const user = await getSessionUser();
+  if (!user || user.role === "student") return { ok: false as const, error: "You are not allowed to add assessments." };
+  const result = await createAssessment(user.id, courseId, assessmentName);
+  if (result.ok) revalidatePath(`/teacher/${courseId}`);
+  return result;
 }
