@@ -1,4 +1,5 @@
 import { z } from "zod";
+export { getRateLimitInfo, rateLimit } from "./rate-limit";
 
 /** The three kinds of people who use the system. */
 export type Role = "student" | "teacher" | "admin";

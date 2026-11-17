@@ -4,8 +4,26 @@ import { createClient } from "@supabase/supabase-js";
 import { createManagedCourse, createManagedStudent, createManagedTeacher, deleteManagedUser, enrollStudent } from "@gradebook/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { devFakeAuth } from "@/lib/env";
 import { getSessionUser } from "@/lib/session";
+import { rateLimit } from "@gradebook/shared";
+
+async function getClientIp(): Promise<string> {
+  const h = await headers();
+  return h.get("x-real-ip") ??
+         h.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
+         "unknown";
+}
+
+async function checkRateLimit(action: string): Promise<void> {
+  const ip = await getClientIp();
+  const { ok, resetAt } = rateLimit(`admin:${action}:${ip}`);
+  if (!ok) {
+    const mins = Math.ceil((resetAt - Date.now()) / 60000);
+    redirect(`/admin?status=rate-limited&error=${encodeURIComponent(`Too many attempts. Try again in ${mins} min.`)}`);
+  }
+}
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,6 +49,7 @@ const required = (data: FormData, key: string) => String(data.get(key) ?? "").tr
 const validAccount = (email: string, password: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 8;
 
 export async function createStudentAction(formData: FormData) {
+  await checkRateLimit("create-student");
   const user = await requireAdmin();
   const name = required(formData, "name");
   const email = required(formData, "email").toLowerCase();
@@ -51,6 +70,7 @@ export async function createStudentAction(formData: FormData) {
 }
 
 export async function createTeacherAction(formData: FormData) {
+  await checkRateLimit("create-teacher");
   const user = await requireAdmin();
   const name = required(formData, "name");
   const email = required(formData, "email").toLowerCase();
@@ -71,6 +91,7 @@ export async function createTeacherAction(formData: FormData) {
 }
 
 export async function createCourseAction(formData: FormData) {
+  await checkRateLimit("create-course");
   const user = await requireAdmin();
   const courseName = required(formData, "courseName");
   const semester = required(formData, "semester");
@@ -86,6 +107,7 @@ export async function createCourseAction(formData: FormData) {
 }
 
 export async function deleteUserAction(formData: FormData) {
+  await checkRateLimit("delete-user");
   const user = await requireAdmin();
   const id = required(formData, "userId");
   if (!/^[0-9a-f-]{36}$/i.test(id)) redirect("/admin?status=invalid");

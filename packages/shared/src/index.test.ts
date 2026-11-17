@@ -6,6 +6,7 @@ import {
   canViewStudentGrades,
   homePathFor,
   isLow,
+  rateLimit,
   saveScoreSchema,
   type Actor,
 } from "./index";
@@ -63,6 +64,20 @@ describe("helpers", () => {
   it("flags results below 50", () => {
     expect(isLow(49.9)).toBe(true);
     expect(isLow(50)).toBe(false);
+  });
+
+  describe("rate limiting", () => {
+    it("allows ten attempts and rejects the eleventh", () => {
+      const key = `test-rate-limit-${crypto.randomUUID()}`;
+
+      for (let attempt = 1; attempt <= 10; attempt++) {
+        const result = rateLimit(key);
+        expect(result.ok).toBe(true);
+        expect(result.remaining).toBe(10 - attempt);
+      }
+
+      expect(rateLimit(key)).toMatchObject({ ok: false, remaining: 0 });
+    });
   });
   it("averages to one decimal and handles no scores", () => {
     expect(average([50, 75])).toBe(62.5);
