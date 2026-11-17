@@ -59,5 +59,7 @@ The backup database (`BACKUP_DATABASE_URL`) comes from `docker compose up -d bac
 
 - **Migrations are hand-written** in Prisma's format, because the environment they were made in could not run `prisma migrate`. On your machine run `npx prisma migrate status` inside `packages/db`; if it reports drift, tell the team.
 - **Backups need `pg_dump`/`pg_restore` at least as new as the server** (Supabase is on a recent major version) and a direct/session connection, not the transaction pooler.
-- **Not yet tested against a live Supabase project**: sign-in, session cookies, middleware. Everything else was run against real PostgreSQL 16. Docker files were not executed.
-- Known gaps: no user-management screen, no password reset, no screen for the audit log.
+- **Not yet tested against a live Supabase project**: sign-in, session cookies, middleware, and creating/removing Auth accounts. Everything else was run against real PostgreSQL 16. Docker files were not executed.
+- The admin screen can review the full student roster and all grades, add students and teachers (including a login account), add courses, enroll students, and delete eligible accounts. Real Supabase account management requires `SUPABASE_SERVICE_ROLE_KEY`; it is server-only and must never be exposed to the browser. Share initial passwords securely.
+- Account deletion removes the login and app-role association; academic records are retained. The current admin, the last admin, and users referenced by grade audit history cannot be deleted.
+- Known gaps: no password reset, no screen for the audit log, and no admin creation form (create administrator accounts through a trusted setup/seed process).
