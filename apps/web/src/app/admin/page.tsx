@@ -4,6 +4,7 @@ import type { MessageKey } from "@/lib/i18n/translate";
 import { requireRole } from "@/lib/session";
 import { createCourseAction, createStudentAction, createTeacherAction, enrollAction } from "./actions";
 import { DeleteAccountForm } from "./DeleteAccountForm";
+import { StudentDirectory } from "./StudentDirectory";
 
 const MESSAGES: Record<string, { key: MessageKey; good: boolean }> = {
   enrolled: { key: "admin.msg.enrolled", good: true },
@@ -136,12 +137,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
       <section className="card stack">
         <h2>{t("admin.students.title")}</h2>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>{t("admin.students.id")}</th><th>{t("admin.students.name")}</th><th>{t("admin.students.email")}</th><th>{t("admin.students.group")}</th></tr></thead>
-            <tbody>{data.students.map((s) => <tr key={s.studentId}><td>{s.studentId}</td><td>{s.fullName}</td><td className="muted">{s.email}</td><td>{s.groupName}</td></tr>)}</tbody>
-          </table>
-        </div>
+        <StudentDirectory students={data.students} />
       </section>
 
       <section className="card stack">
