@@ -10,7 +10,10 @@ interface Bucket {
   resetAt: number;
 }
 
-const buckets = new Map<string, Bucket>();
+const rateLimitState = globalThis as typeof globalThis & {
+  gradebookRateLimitBuckets?: Map<string, Bucket>;
+};
+const buckets = (rateLimitState.gradebookRateLimitBuckets ??= new Map());
 
 export function rateLimit(key: string): { ok: boolean; remaining: number; resetAt: number } {
   const now = Date.now();

@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { supabaseEnv } from "./env";
@@ -18,4 +19,13 @@ export async function createSupabaseServerClient() {
       },
     },
   });
+}
+
+
+/** Privileged Auth client for server-side account management. */
+export function createSupabaseAdminClient() {
+  const { url } = supabaseEnv();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error("Set SUPABASE_SERVICE_ROLE_KEY to manage Supabase accounts.");
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }

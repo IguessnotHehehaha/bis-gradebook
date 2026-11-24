@@ -23,7 +23,7 @@ export async function saveScoreAction(input: SaveScoreInput): Promise<SaveScoreR
 
   const res = await saveGradeScore(user.id, parsed.data);
   if (!res.ok) return { ok: false, error: translateError(tr, res.error) };
-  revalidatePath("/teacher");
+  if (res.changed) revalidatePath("/teacher");
   return { ok: true, score: res.score };
 }
 

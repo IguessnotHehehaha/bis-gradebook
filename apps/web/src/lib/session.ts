@@ -21,8 +21,8 @@ export const getAuthUserId = cache(async (): Promise<string | null> => {
     return (await cookies()).get(DEV_COOKIE)?.value ?? null;
   }
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser(); // verified with Supabase, not just read from the cookie
-  return data.user?.id ?? null;
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims.sub ?? null;
 });
 
 /**
@@ -33,7 +33,14 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const id = await getAuthUserId();
   if (!id) return null;
   // Trusted lookup (bypasses row level security) just to learn who this login is.
-  const u = await prisma.appUser.findUnique({ where: { id }, include: { student: true, teacher: true } });
+  const u = await prisma.appUser.findUnique({
+    where: { id },
+    select: {
+      id: true, email: true, role: true, studentId: true, teacherId: true, theme: true, locale: true,
+      student: { select: { fullName: true } },
+      teacher: { select: { fullName: true } },
+    },
+  });
   if (!u) return null;
   return {
     id: u.id,

@@ -23,6 +23,12 @@ docs/            User stories
 
 Demo logins: `admin@univ.kz`, `a.serikova@univ.kz` (teacher), `student001@univ.kz` … `student020@univ.kz`.
 
+### Student self-registration
+
+Open **Create account** on `/login`. The server uses `SUPABASE_SERVICE_ROLE_KEY` to create the Auth account without sending a confirmation email. The email address is the login. Supabase Auth stores the password hash. The new profile is a student in the **Unassigned** group with zero course enrollments. Staff accounts are still created by administrators.
+
+The login page shows the remaining attempts from the existing per-IP limiter (10 attempts per 15 minutes on each running app instance).
+
 ## Setup B — local only, no Supabase
 
 For development without an account.
@@ -40,7 +46,7 @@ For development without an account.
 | `npm test` | Unit tests; database role tests run when `TEST_DATABASE_URL` points at a scratch Postgres |
 | `npm run typecheck` | Type-check all packages |
 | `npm run db:migrate` | Apply migrations |
-| `npm run db:seed` / `db:seed:clear` | Add / wipe sample data |
+| `npm run db:seed` / `db:seed:clear` | Add missing demo data / reset all gradebook data and reseed |
 | `npm run backup` | One backup of the `public` schema into `backups/` and the backup database |
 | `npm run backup:watch` | Repeat every `BACKUP_INTERVAL_MINUTES`, keep `BACKUP_KEEP` files |
 | `npm run backup:verify` | Compare live and backup row counts |

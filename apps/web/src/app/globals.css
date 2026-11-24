@@ -1,9 +1,12 @@
+@tailwind base;
+@tailwind components;
+
 :root {
   color-scheme: light;
   --bg: #f5f6f8;
-  --card: #ffffff;
+  --surface: #ffffff;
   --ink: #14202b;
-  --muted: #566573;
+  --muted-ink: #566573;
   --line: #dde3e8;
   --brand: #0b6e69;
   --brand-dark: #09544f;
@@ -27,9 +30,9 @@
 html[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0e1318;
-  --card: #161c23;
+  --surface: #161c23;
   --ink: #e7ecf1;
-  --muted: #9aa7b4;
+  --muted-ink: #9aa7b4;
   --line: #29323c;
   --brand: #4cc2ba;
   --brand-dark: #7fd8d2;
@@ -64,21 +67,21 @@ a { color: var(--brand-dark); }
 
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0.8rem 1.5rem; background: var(--card); border-bottom: 1px solid var(--line);
+  padding: 0.8rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .brand { font-weight: 700; font-size: 1.15rem; color: var(--brand); text-decoration: none; }
 .who { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .topbar { gap: 1rem; flex-wrap: wrap; }
 .nav { display: flex; align-items: center; gap: 0.25rem; flex: 1; margin-left: 1rem; flex-wrap: wrap; }
 .nav a {
-  padding: 0.35rem 0.75rem; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.95rem;
+  padding: 0.35rem 0.75rem; border-radius: 8px; color: var(--muted-ink); text-decoration: none; font-weight: 600; font-size: 0.95rem;
 }
 .nav a:hover { background: var(--row-hover); color: var(--ink); }
 .nav a[aria-current="page"] { background: var(--brand-soft); color: var(--brand-dark); }
 .prefs { display: flex; align-items: center; gap: 0.5rem; }
 .prefs form { display: flex; margin: 0; }
 .seg { display: inline-flex; border: 1px solid var(--input-line); border-radius: 8px; overflow: hidden; }
-.seg button { background: transparent; border: 0; color: var(--muted); padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: 600; }
+.seg button { background: transparent; border: 0; color: var(--muted-ink); padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: 600; }
 .seg button:hover { background: var(--row-hover); color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand-dark); }
 .icon-btn { background: transparent; border: 1px solid var(--input-line); color: var(--ink); border-radius: 8px; padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: 600; }
@@ -95,11 +98,11 @@ a { color: var(--brand-dark); }
 .stack { display: flex; flex-direction: column; gap: 1rem; }
 .row { display: flex; gap: 1rem; align-items: center; }
 .between { justify-content: space-between; }
-.muted { color: var(--muted); }
+.muted { color: var(--muted-ink); }
 .small { font-size: 0.85rem; }
 .crumb { font-size: 0.9rem; margin-bottom: 0.5rem; }
 
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1.25rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
 .course-card { display: flex; flex-direction: column; gap: 0.35rem; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; }
 .course-card:hover, .course-card:focus-visible { border-color: var(--brand); box-shadow: 0 2px 10px var(--shadow); outline: none; }
@@ -108,7 +111,7 @@ a { color: var(--brand-dark); }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 0.55rem 0.7rem; text-align: left; border-bottom: 1px solid var(--line); }
-th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+th { font-size: 0.85rem; color: var(--muted-ink); font-weight: 600; }
 .num { text-align: right; }
 tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
 
@@ -121,7 +124,7 @@ td.num.low { font-weight: 600; }
 .notice { background: var(--warn-bg); color: var(--warn); padding: 0.6rem 0.9rem; border-radius: 8px; margin-top: 0.6rem; }
 .error { color: var(--low); }
 .success { color: var(--ok); font-weight: 600; }
-.hint { color: var(--muted); font-size: 0.9rem; }
+.hint { color: var(--muted-ink); font-size: 0.9rem; }
 
 label { display: flex; flex-direction: column; gap: 0.3rem; font-weight: 600; font-size: 0.9rem; }
 input, select {
@@ -141,7 +144,7 @@ button.link { background: none; border: 0; color: var(--brand-dark); text-decora
 .check { flex-direction: row; align-items: center; gap: 0.5rem; font-weight: 500; }
 .check input { width: 1.1rem; height: 1.1rem; padding: 0; }
 .table-wrap { padding: 0; overflow-x: auto; }
-.gradegrid th:first-child, .gradegrid td:first-child { position: sticky; left: 0; background: var(--card); }
+.gradegrid th:first-child, .gradegrid td:first-child { position: sticky; left: 0; background: var(--surface); }
 .gradegrid thead th { white-space: nowrap; }
 .gradegrid tbody th { font-weight: 600; font-size: 1rem; color: var(--ink); white-space: nowrap; }
 td.cell { text-align: right; position: relative; min-width: 110px; padding: 0.3rem 0.5rem; }
@@ -151,7 +154,7 @@ td.cell input:focus { border-color: var(--brand); background: var(--input-bg); }
 td.cell.low input { color: var(--low); font-weight: 700; background: var(--low-bg); }
 td.cell.bad input { border-color: var(--low); }
 .flag { color: var(--low); font-size: 0.7rem; margin-left: 0.15rem; }
-.state { display: block; font-size: 0.75rem; color: var(--muted); }
+.state { display: block; font-size: 0.75rem; color: var(--muted-ink); }
 .state.ok { color: var(--ok); }
 .state.err { color: var(--low); max-width: 12rem; margin-left: auto; text-align: right; }
 .avgcell { font-weight: 600; white-space: nowrap; }
@@ -183,7 +186,7 @@ tfoot th, tfoot td { border-top: 2px solid var(--line); border-bottom: none; fon
 .chart { margin: 0; }
 .chart svg { width: 100%; height: auto; display: block; }
 .chart-grid { stroke: var(--line); stroke-width: 1; }
-.chart-axis { fill: var(--muted); font-size: 10px; }
+.chart-axis { fill: var(--muted-ink); font-size: 10px; }
 .chart-value { fill: var(--ink); font-size: 11px; font-weight: 600; }
 .chart-bar { fill: var(--brand); }
 .chart-bar.low { fill: var(--low); }
@@ -244,7 +247,130 @@ tfoot th, tfoot td { border-top: 2px solid var(--line); border-bottom: none; fon
 .toolbar.card { padding: 0.9rem 1.25rem; align-items: flex-end; justify-content: flex-start; gap: 1.25rem; }
 .toolbar .grow { flex: 1; min-width: 200px; }
 .toolbar .check { align-self: center; padding-top: 1.2rem; }
-.gradegrid thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+.gradegrid thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .gradegrid tfoot th:first-child { position: sticky; left: 0; }
 .addcol { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; max-width: none; }
 .addcol label { flex: 1; min-width: 220px; max-width: 380px; }
+
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 224 71% 40%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 19% 39%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 224 71% 32%;
+    --destructive: 0 72% 39%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 88%;
+    --input: 215 25% 76%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5% 26%;
+    --sidebar-primary: 224 71% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 96%;
+    --sidebar-accent-foreground: 240 6% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  .dark {
+    --background: 216 23% 11%;
+    --foreground: 210 40% 98%;
+    --card: 215 23% 14%;
+    --card-foreground: 210 40% 98%;
+    --popover: 215 23% 14%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 70%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 30% 18%;
+    --muted-foreground: 215 20% 73%;
+    --accent: 217 33% 22%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 90% 79%;
+    --destructive-foreground: 222 47% 11%;
+    --border: 217 23% 25%;
+    --input: 216 19% 37%;
+    --ring: 213 94% 68%;
+    --sidebar-background: 240 6% 10%;
+    --sidebar-foreground: 240 5% 96%;
+    --sidebar-primary: 217 91% 70%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 240 4% 16%;
+    --sidebar-accent-foreground: 240 5% 96%;
+    --sidebar-border: 240 4% 16%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signin-card-enter {
+    animation: signin-card-enter 240ms ease-out both;
+  }
+
+  @keyframes signin-card-enter {
+    from { opacity: 0.92; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* Native range keeps keyboard and touch input available in the paginator. */
+input.scrub-track {
+  appearance: none;
+  height: 2rem;
+  min-height: 2rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: grab;
+}
+
+input.scrub-track:active { cursor: grabbing; }
+
+.scrub-track::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, hsl(var(--primary)) var(--scrub-progress), hsl(var(--border)) var(--scrub-progress));
+}
+
+.scrub-track::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: hsl(var(--border));
+}
+
+.scrub-track::-moz-range-progress { background: hsl(var(--primary)); }
+
+.scrub-track::-webkit-slider-thumb {
+  appearance: none;
+  width: 28px;
+  height: 15px;
+  margin-top: -5.5px;
+  border: 1px solid hsl(var(--ring));
+  border-radius: 999px;
+  background: hsl(var(--background));
+}
+
+.scrub-track::-moz-range-thumb {
+  width: 28px;
+  height: 15px;
+  border: 1px solid hsl(var(--ring));
+  border-radius: 999px;
+  background: hsl(var(--background));
+}
+
+.scrub-pages:not([data-ready]) [aria-current="page"] { background-color: hsl(var(--primary)); }

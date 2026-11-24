@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { AttestationSummary } from "@gradebook/db";
-import { attestationAverage } from "@gradebook/shared";
+import { attestationAverage } from "@gradebook/shared/scoring";
 import { useT } from "@/lib/i18n/client";
 import { saveAttestationAction } from "../actions";
 

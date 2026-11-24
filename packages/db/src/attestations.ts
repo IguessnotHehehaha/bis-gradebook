@@ -68,10 +68,13 @@ export async function selfEnroll(userId: string, courseId: number): Promise<"enr
     return await withUser(userId, async (tx) => {
       const self = await tx.appUser.findUnique({ where: { id: userId } });
       if (!self || self.role !== "STUDENT" || self.studentId === null) return "failed";
-      await tx.enrollment.create({ data: { courseId, studentId: self.studentId } });
-      return "enrolled";
+      const result = await tx.enrollment.createMany({
+        data: [{ courseId, studentId: self.studentId }],
+        skipDuplicates: true,
+      });
+      return result.count === 1 ? "enrolled" : "already";
     });
-  } catch (error) {
-    return /P2002|unique|duplicate/i.test(String(error)) ? "already" : "failed";
+  } catch {
+    return "failed";
   }
 }

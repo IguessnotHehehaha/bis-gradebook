@@ -95,6 +95,7 @@ model Course {
   teacher     Teacher      @relation(fields: [teacherId], references: [teacherId])
   enrollments Enrollment[]
 
+  @@index([teacherId])
   @@map("courses")
 }
 
@@ -110,6 +111,7 @@ model Enrollment {
   attestations AttestationResult[]
 
   @@id([studentId, courseId])
+  @@index([courseId])
   @@map("enrollments")
 }
 
@@ -158,6 +160,7 @@ model AuditLog {
   user AppUser @relation(fields: [changedBy], references: [id])
 
   @@index([courseId])
+  @@index([changedBy])
   @@map("audit_log")
 }
 

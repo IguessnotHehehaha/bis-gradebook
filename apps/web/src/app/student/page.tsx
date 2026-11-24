@@ -12,7 +12,11 @@ export default async function StudentPage({ searchParams }: { searchParams: Prom
   const rows = await getStudentGrades(user.id, user.studentId!);
 
   const byCourse = new Map<number, StudentGradeRow[]>();
-  for (const r of rows) byCourse.set(r.courseId, [...(byCourse.get(r.courseId) ?? []), r]);
+  for (const row of rows) {
+    const course = byCourse.get(row.courseId);
+    if (course) course.push(row);
+    else byCourse.set(row.courseId, [row]);
+  }
   const courses = [...byCourse.values()];
 
   const lowCount = rows.filter((r) => isLow(r.score)).length;

@@ -16,8 +16,10 @@ export type Tx = Prisma.TransactionClient;
  */
 export async function withUser<T>(userId: string, work: (tx: Tx) => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`select set_config('request.jwt.claim.sub', ${userId}, true)`;
-    await tx.$executeRawUnsafe("set local role authenticated");
+    await tx.$executeRaw`
+      select set_config('request.jwt.claim.sub', ${userId}, true),
+             set_config('role', 'authenticated', true)
+    `;
     return work(tx);
   });
 }

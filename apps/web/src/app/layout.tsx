@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     : [];
 
   return (
-    <html lang={locale} data-theme={theme}>
+    <html lang={locale} data-theme={theme} className={theme === "dark" ? "dark" : undefined}>
       <body>
         <I18nProvider locale={locale}>
           <header className="topbar">

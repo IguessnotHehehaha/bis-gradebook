@@ -4,7 +4,7 @@ import { DEV_COOKIE, devFakeAuth, supabaseEnv } from "@/lib/env";
 
 /** Keeps the Supabase session fresh and sends signed-out visitors to /login. */
 export async function middleware(request: NextRequest) {
-  const isLogin = request.nextUrl.pathname.startsWith("/login");
+  const isLogin = request.nextUrl.pathname === "/login";
   const toLogin = () => {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -30,10 +30,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user && !isLogin) return toLogin();
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims.sub && !isLogin) {
+    const redirect = toLogin();
+    for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
+    return redirect;
+  }
   return response;
 }
 

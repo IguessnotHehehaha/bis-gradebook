@@ -1,7 +1,7 @@
 "use client";
 
-import { PASS_MARK, average, isLow } from "@gradebook/shared";
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { PASS_MARK, average, isLow } from "@gradebook/shared/scoring";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useT } from "@/lib/i18n/client";
 import { createAssessmentAction, saveScoreAction } from "../actions";
 
@@ -15,7 +15,7 @@ interface Props {
 const key = (studentId: number, assessment: string) => `${studentId}:${assessment}`;
 
 /** One score box. Saves by itself when you press Enter or click away. */
-function ScoreCell(props: {
+const ScoreCell = memo(function ScoreCell(props: {
   courseId: number;
   studentId: number;
   assessment: string;
@@ -30,23 +30,38 @@ function ScoreCell(props: {
   const [text, setText] = useState(shown);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
+  const saving = useRef(false);
 
   useEffect(() => setText(shown), [shown]);
+
+  useEffect(() => {
+    if (status !== "saved") return;
+    const timer = setTimeout(() => setStatus("idle"), 1500);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   async function commit() {
     const entered = text.trim();
     if (entered === shown) return;
     if (entered === "") return setText(shown); // clearing a grade is not supported
+    if (saving.current) return;
+    saving.current = true;
     setStatus("saving");
-    const res = await saveScoreAction({ courseId, studentId, assessmentName: assessment, score: entered });
-    if (res.ok) {
+    try {
+      const res = await saveScoreAction({ courseId, studentId, assessmentName: assessment, score: entered });
+      if (!res.ok) {
+        setMessage(res.error);
+        setStatus("error");
+        return;
+      }
+      setText(String(res.score));
       onSaved(studentId, assessment, res.score);
-      setMessage("");
       setStatus("saved");
-      setTimeout(() => setStatus((s) => (s === "saved" ? "idle" : s)), 1500);
-    } else {
-      setMessage(res.error);
+    } catch {
+      setMessage(t("grid.error.saveFailed"));
       setStatus("error");
+    } finally {
+      saving.current = false;
     }
   }
 
@@ -69,6 +84,7 @@ function ScoreCell(props: {
     <td className={"cell" + (low ? " low" : "") + (status === "error" ? " bad" : "")}>
       <input
         value={text}
+        readOnly={status === "saving"}
         inputMode="decimal"
         placeholder="–"
         aria-label={t("grid.cell.aria", { assessment })}
@@ -90,7 +106,7 @@ function ScoreCell(props: {
       )}
     </td>
   );
-}
+});
 
 export function GradeGrid({ courseId, students, assessments, scores: initial }: Props) {
   const { t } = useT();
@@ -103,21 +119,52 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("");
 
-  const columns = [...new Set([...assessments, ...extra])];
-  const values = Object.values(scores);
-  const lowTotal = values.filter(isLow).length;
-  const hasLow = (studentId: number) =>
-    columns.some((a) => scores[key(studentId, a)] !== undefined && isLow(scores[key(studentId, a)]));
-  const groups = [...new Set(students.map((s) => s.groupName))].sort();
-  const visible = students.filter(
+  const columns = useMemo(() => [...new Set([...assessments, ...extra])], [assessments, extra]);
+  const groups = useMemo(() => [...new Set(students.map((s) => s.groupName))].sort(), [students]);
+  const { overallAvg, lowTotal, lowStudents, rowAverages, columnAverages } = useMemo(() => {
+    const rows = new Map<number, number[]>();
+    const columns = new Map<string, number[]>();
+    const lowStudents = new Set<number>();
+    const values: number[] = [];
+    let lowTotal = 0;
+    for (const [cell, score] of Object.entries(scores)) {
+      const separator = cell.indexOf(":");
+      const studentId = Number(cell.slice(0, separator));
+      const assessment = cell.slice(separator + 1);
+      const rowScores = rows.get(studentId) ?? [];
+      const columnScores = columns.get(assessment) ?? [];
+      rowScores.push(score);
+      columnScores.push(score);
+      rows.set(studentId, rowScores);
+      columns.set(assessment, columnScores);
+      values.push(score);
+      if (isLow(score)) {
+        lowTotal++;
+        lowStudents.add(studentId);
+      }
+    }
+    return {
+      overallAvg: average(values),
+      lowTotal,
+      lowStudents,
+      rowAverages: new Map([...rows].map(([id, values]) => [id, average(values)])),
+      columnAverages: new Map([...columns].map(([name, values]) => [name, average(values)])),
+    };
+  }, [scores]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = useMemo(() => students.filter(
     (s) =>
-      (!onlyLow || hasLow(s.studentId)) &&
+      (!onlyLow || lowStudents.has(s.studentId)) &&
       (!group || s.groupName === group) &&
-      s.fullName.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  const overallAvg = average(values);
-  const colAvg = (a: string) =>
-    average(students.map((s) => scores[key(s.studentId, a)]).filter((v): v is number => v !== undefined));
+      s.fullName.toLowerCase().includes(normalizedQuery),
+  ), [students, onlyLow, lowStudents, group, normalizedQuery]);
+
+  const onSaved = useCallback((studentId: number, assessment: string, score: number) => {
+    setScores((previous) => {
+      const cell = key(studentId, assessment);
+      return previous[cell] === score ? previous : { ...previous, [cell]: score };
+    });
+  }, []);
 
   async function addColumn(e: FormEvent) {
     e.preventDefault();
@@ -184,7 +231,7 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
           </thead>
           <tbody>
             {visible.map((s, row) => {
-              const own = columns.map((a) => scores[key(s.studentId, a)]).filter((v): v is number => v !== undefined);
+              const rowAverage = rowAverages.get(s.studentId) ?? null;
               return (
                 <tr key={s.studentId}>
                   <th scope="row">
@@ -199,10 +246,10 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
                       studentId={s.studentId}
                       assessment={a}
                       value={scores[key(s.studentId, a)]}
-                      onSaved={(sid, assessment, score) => setScores((prev) => ({ ...prev, [key(sid, assessment)]: score }))}
+                      onSaved={onSaved}
                     />
                   ))}
-                  <td className={"num avgcell" + (average(own) !== null && isLow(average(own)!) ? " low" : "")}>{average(own) ?? t("common.none")}</td>
+                  <td className={"num avgcell" + (rowAverage !== null && isLow(rowAverage) ? " low" : "")}>{rowAverage ?? t("common.none")}</td>
                 </tr>
               );
             })}
@@ -221,7 +268,7 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
               <tr>
                 <th scope="row">{t("grid.avgAll")}</th>
                 {columns.map((c) => (
-                  <td key={c} className="num">{colAvg(c) ?? t("common.none")}</td>
+                  <td key={c} className="num">{columnAverages.get(c) ?? t("common.none")}</td>
                 ))}
                 <td className="num avgcell">{overallAvg ?? t("common.none")}</td>
               </tr>

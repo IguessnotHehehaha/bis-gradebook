@@ -122,7 +122,14 @@ run("student role", () => {
 run("teacher role", () => {
   it("sees only their own courses", async () => {
     const courses = await getTeacherCourses(U.t1, 1);
-    expect(courses.map((c) => c.courseId)).toEqual([1]);
+    expect(courses).toMatchObject([{
+      courseId: 1,
+      gradeCount: 2,
+      lowCount: 1,
+      average: 60,
+      studentCount: 2,
+      assessmentCount: 1,
+    }]);
     const other = await getTeacherCourses(U.t1, 2);
     expect(other).toHaveLength(0);
   });
@@ -309,5 +316,28 @@ run("student self-enrollment and attestations", () => {
     expect(await saveAttestation(U.t2, { ...input, studentId: 3, courseId: 2 })).toEqual({ ok: false });
     expect(await withUser(U.s2, (tx) => tx.attestationResult.findMany({ where: { studentId: 1 } }))).toHaveLength(0);
     expect(await withUser(U.t2, (tx) => tx.attestationResult.findMany({ where: { courseId: 1 } }))).toHaveLength(0);
+  });
+});
+
+run("concurrent grade edits", () => {
+  it("creates one grade and records both changes in order", async () => {
+    const cell = { studentId: 1, courseId: 1, assessmentName: "Concurrent quiz" };
+    const results = await Promise.all([
+      saveGradeScore(U.t1, { ...cell, score: 65 }),
+      saveGradeScore(U.t1, { ...cell, score: 75 }),
+    ]);
+    expect(results).toEqual([
+      { ok: true, score: 65, changed: true },
+      { ok: true, score: 75, changed: true },
+    ]);
+    const audits = await prisma.auditLog.findMany({
+      where: cell,
+      orderBy: { auditId: "asc" },
+    });
+    expect(audits).toHaveLength(2);
+    expect(audits[0].action).toBe("CREATE");
+    expect(audits[1].action).toBe("UPDATE");
+    expect(audits[1].gradeId).toBe(audits[0].gradeId);
+    expect(audits[1].oldScore?.toNumber()).toBe(audits[0].newScore?.toNumber());
   });
 });

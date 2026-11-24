@@ -11,7 +11,7 @@
 import crypto from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { prisma } from "../src/client";
-import { UserRole } from "../src/generated/client";
+import { UserRole, type Prisma } from "../src/generated/client";
 
 const PASSWORD = process.env.SEED_PASSWORD ?? "Gradebook123!";
 
@@ -66,121 +66,163 @@ if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KE
   });
 }
 
-async function ensureLogin(email: string): Promise<string> {
-  if (!supabase) return localUuid(email);
-  const created = await supabase.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
-  if (created.data.user) return created.data.user.id;
-  // Already exists: find it.
-  for (let page = 1; page < 50; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    const hit = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-    if (hit) return hit.id;
-    if (data.users.length < 200) break;
-  }
-  throw new Error(`Could not create or find a Supabase user for ${email}: ${created.error?.message}`);
-}
+const teacherData = TEACHERS.map(([fullName, email, department]) => ({ fullName, email, department }));
+const studentData = Array.from({ length: STUDENT_COUNT }, (_, i) => ({
+  email: `student${String(i + 1).padStart(3, "0")}@univ.kz`,
+  fullName: `${FIRST[i % FIRST.length]} ${LAST[(i * 3) % LAST.length]}`,
+  groupName: GROUPS[i % GROUPS.length],
+}));
+const demoEmails = [ADMIN_EMAIL, ...teacherData.map((t) => t.email), ...studentData.map((s) => s.email)];
 
-async function ensureAppUser(email: string, role: UserRole, link: { studentId?: number; teacherId?: number }) {
-  const id = await ensureLogin(email);
-  const existing = await prisma.appUser.findUnique({ where: { email } });
-  if (existing && existing.id !== id) {
-    // e.g. earlier seeded locally, now seeding against Supabase: replace the row.
-    await prisma.auditLog.deleteMany({ where: { changedBy: existing.id } });
-    await prisma.appUser.delete({ where: { id: existing.id } });
-  }
-  await prisma.appUser.upsert({
-    where: { id },
-    update: { email, role, ...link },
-    create: { id, email, role, ...link },
+async function resolveLogins() {
+  const auth = supabase?.auth.admin;
+  if (!auth) return new Map(demoEmails.map((email) => [email, localUuid(email)]));
+
+  const profiles = await prisma.appUser.findMany({
+    where: { email: { in: demoEmails } },
+    select: { id: true, email: true, role: true },
   });
+  const knownProfiles = new Map(profiles.map((profile) => [profile.email, profile]));
+  const wanted = new Set(demoEmails);
+  const logins = new Map<string, string>();
+  for (let page = 1; logins.size < wanted.size; page++) {
+    const { data, error } = await auth.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    for (const user of data.users) {
+      const email = user.email?.toLowerCase();
+      if (!email || !wanted.has(email)) continue;
+      const expectedRole = email === ADMIN_EMAIL ? UserRole.ADMIN :
+        teacherData.some((teacher) => teacher.email === email) ? UserRole.TEACHER : UserRole.STUDENT;
+      const profile = knownProfiles.get(email);
+      if (expectedRole !== UserRole.STUDENT &&
+          !(profile?.id === user.id && profile.role === expectedRole) &&
+          user.app_metadata.gradebook_seed !== true) {
+        throw new Error(`Existing Auth account ${email} is not linked to the expected staff role. Review it before seeding.`);
+      }
+      logins.set(email, user.id);
+    }
+    if (data.nextPage === null) break;
+  }
+
+  const missing = demoEmails.filter((email) => !logins.has(email));
+  console.log(`Auth: ${logins.size} existing demo logins, ${missing.length} to create.`);
+  for (let i = 0; i < missing.length; i += 5) {
+    const batch = await Promise.allSettled(missing.slice(i, i + 5).map(async (email) => {
+      const { data, error } = await auth.createUser({
+        email, password: PASSWORD, email_confirm: true, app_metadata: { gradebook_seed: true },
+      });
+      if (error) throw new Error(`Could not create demo login ${email}: ${error.code ?? error.name}`);
+      logins.set(email, data.user.id);
+    }));
+    const failed = batch.find((result) => result.status === "rejected");
+    if (failed) throw failed.reason;
+  }
+  return logins;
 }
 
-async function main() {
-  if (process.argv.includes("--clear")) {
-    await prisma.attestationResult.deleteMany();
-    await prisma.auditLog.deleteMany();
-    await prisma.grade.deleteMany();
-    await prisma.enrollment.deleteMany();
-    await prisma.appUser.deleteMany();
-    await prisma.assessment.deleteMany();
-    await prisma.course.deleteMany();
-    await prisma.student.deleteMany();
-    await prisma.teacher.deleteMany();
-    await prisma.studentGroup.deleteMany();
-    console.log("Cleared existing data.");
-  }
+async function clearGradebook(tx: Prisma.TransactionClient) {
+  await tx.attestationResult.deleteMany();
+  await tx.auditLog.deleteMany();
+  await tx.grade.deleteMany();
+  await tx.enrollment.deleteMany();
+  await tx.appUser.deleteMany();
+  await tx.assessment.deleteMany();
+  await tx.course.deleteMany();
+  await tx.student.deleteMany();
+  await tx.teacher.deleteMany();
+  await tx.studentGroup.deleteMany();
+}
 
-  const teachers = [];
-  for (const [fullName, email, department] of TEACHERS) {
-    teachers.push(await prisma.teacher.upsert({ where: { email }, update: {}, create: { fullName, email, department } }));
-  }
+async function seedGradebook(tx: Prisma.TransactionClient, logins: Map<string, string>, clear: boolean) {
+  // Courses have no unique name/semester constraint. Serialize concurrent seed runs.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(912679311::bigint)`;
+  if (clear) await clearGradebook(tx);
 
-  const courses = [];
-  for (const [courseName, semester, t] of COURSES) {
-    const found = await prisma.course.findFirst({ where: { courseName, semester } });
-    courses.push(found ?? (await prisma.course.create({ data: { courseName, semester, teacherId: teachers[t].teacherId } })));
-  }
+  await tx.teacher.createMany({ data: teacherData, skipDuplicates: true });
+  const teacherRows = await tx.teacher.findMany({ where: { email: { in: teacherData.map((t) => t.email) } } });
+  const teachers = teacherData.map(({ email }) => teacherRows.find((row) => row.email === email)!);
 
-  const groups = await Promise.all(GROUPS.map((groupName) =>
-    prisma.studentGroup.upsert({ where: { groupName }, update: {}, create: { groupName } }),
-  ));
-  const students = [];
-  for (let i = 0; i < STUDENT_COUNT; i++) {
-    const email = `student${String(i + 1).padStart(3, "0")}@univ.kz`;
-    students.push(
-      await prisma.student.upsert({
-        where: { email },
-        update: {},
-        create: {
-          fullName: `${FIRST[i % FIRST.length]} ${LAST[(i * 3) % LAST.length]}`,
-          email,
-          groupId: groups[i % groups.length].groupId,
-        },
-      }),
-    );
+  const existingCourses = await tx.course.findMany({
+    where: { OR: COURSES.map(([courseName, semester]) => ({ courseName, semester })) },
+    orderBy: { courseId: "asc" },
+  });
+  const missingCourses = COURSES.filter(([name, semester]) =>
+    !existingCourses.some((course) => course.courseName === name && course.semester === semester));
+  if (missingCourses.length) {
+    existingCourses.push(...await tx.course.createManyAndReturn({
+      data: missingCourses.map(([courseName, semester, teacher]) => ({ courseName, semester, teacherId: teachers[teacher].teacherId })),
+    }));
   }
+  const courses = COURSES.map(([name, semester]) =>
+    existingCourses.find((course) => course.courseName === name && course.semester === semester)!);
 
-  // Each student takes 3 courses.
-  let newGrades = 0;
-  for (const s of students) {
+  await tx.studentGroup.createMany({ data: GROUPS.map((groupName) => ({ groupName })), skipDuplicates: true });
+  const groups = await tx.studentGroup.findMany({ where: { groupName: { in: [...GROUPS] } } });
+  await tx.student.createMany({
+    data: studentData.map(({ email, fullName, groupName }) => ({
+      email, fullName, groupId: groups.find((group) => group.groupName === groupName)!.groupId,
+    })),
+    skipDuplicates: true,
+  });
+  const studentRows = await tx.student.findMany({ where: { email: { in: studentData.map((s) => s.email) } } });
+  const students = studentData.map(({ email }) => studentRows.find((row) => row.email === email)!);
+
+  const enrollments: Prisma.EnrollmentCreateManyInput[] = [];
+  const demoGrades: { studentId: number; courseId: number; assessmentName: string; score: number }[] = [];
+  const assessmentData = new Map<string, Prisma.AssessmentCreateManyInput>();
+  for (const { studentId } of students) {
     const picked = [...courses].sort(() => rng() - 0.5).slice(0, 3);
-    for (const c of picked) {
-      await prisma.enrollment.createMany({ data: [{ studentId: s.studentId, courseId: c.courseId }], skipDuplicates: true });
+    for (const { courseId } of picked) {
+      enrollments.push({ studentId, courseId });
       const howMany = 2 + Math.floor(rng() * 4);
       for (const assessmentName of ASSESSMENTS.slice(0, howMany)) {
         const score = Math.min(100, Math.max(0, Math.round(triangular(20, 100, 72) * 10) / 10));
-        const assessment = await prisma.assessment.upsert({
-          where: { courseId_assessmentName: { courseId: c.courseId, assessmentName } },
-          update: {}, create: { courseId: c.courseId, assessmentName },
-        });
-        const assessmentId = assessment.assessmentId;
-        const key = { studentId_assessmentId: { studentId: s.studentId, assessmentId } };
-        const before = await prisma.grade.findUnique({ where: key });
-        if (!before) {
-          await prisma.grade.create({ data: { studentId: s.studentId, courseId: c.courseId, assessmentId, score } });
-          newGrades++;
-        }
+        demoGrades.push({ studentId, courseId, assessmentName, score });
+        assessmentData.set(`${courseId}:${assessmentName}`, { courseId, assessmentName });
       }
     }
   }
 
-  // Logins + roles
-  await ensureAppUser(ADMIN_EMAIL, UserRole.ADMIN, {});
-  for (const t of teachers) await ensureAppUser(t.email, UserRole.TEACHER, { teacherId: t.teacherId });
-  for (const s of students) await ensureAppUser(s.email, UserRole.STUDENT, { studentId: s.studentId });
+  await tx.enrollment.createMany({ data: enrollments, skipDuplicates: true });
+  await tx.assessment.createMany({ data: [...assessmentData.values()], skipDuplicates: true });
+  const assessments = await tx.assessment.findMany({
+    where: { courseId: { in: courses.map((course) => course.courseId) }, assessmentName: { in: ASSESSMENTS } },
+  });
+  const assessmentIds = new Map(assessments.map((row) => [`${row.courseId}:${row.assessmentName}`, row.assessmentId]));
+  const { count: newGrades } = await tx.grade.createMany({
+    data: demoGrades.map(({ courseId, assessmentName, ...grade }) => ({
+      ...grade, courseId, assessmentId: assessmentIds.get(`${courseId}:${assessmentName}`)!,
+    })),
+    skipDuplicates: true,
+  });
 
-  const low = await prisma.grade.count({ where: { score: { lt: 50 } } });
-  const total = await prisma.grade.count();
-  console.log(
-    `Seed OK: ${teachers.length} teachers, ${courses.length} courses, ${students.length} students, ` +
-      `${newGrades} new grades (${total} total, ${low} below 50).`,
-  );
-  console.log(supabase ? "Created/updated Supabase Auth users." : "No Supabase service key: using local ids (dev fake login).");
-  console.log(`\nDemo logins (password: ${PASSWORD})`);
-  console.log(`  admin    ${ADMIN_EMAIL}`);
-  console.log(`  teacher  ${TEACHERS[0][1]}  (teaches Databases, Python Programming)`);
-  console.log(`  student  student001@univ.kz`);
+  const appUsers = [
+    { email: ADMIN_EMAIL, role: UserRole.ADMIN, studentId: null, teacherId: null },
+    ...teachers.map(({ email, teacherId }) => ({ email, role: UserRole.TEACHER, teacherId, studentId: null })),
+    ...students.map(({ email, studentId }) => ({ email, role: UserRole.STUDENT, studentId, teacherId: null })),
+  ].map((user) => ({ ...user, id: logins.get(user.email)! }));
+  const existingUsers = await tx.appUser.findMany({ where: { email: { in: demoEmails } } });
+  const usersByEmail = new Map(existingUsers.map((user) => [user.email, user]));
+  await tx.appUser.createMany({ data: appUsers.filter((user) => !usersByEmail.has(user.email)) });
+  for (const user of appUsers) {
+    const current = usersByEmail.get(user.email);
+    if (current && (current.id !== user.id || current.role !== user.role ||
+        current.teacherId !== user.teacherId || current.studentId !== user.studentId)) {
+      // The audit log follows a changed local user ID via ON UPDATE CASCADE.
+      await tx.appUser.update({ where: { id: current.id }, data: user });
+    }
+  }
+  return newGrades;
+}
+
+async function main() {
+  console.log("Seed: checking demo logins.");
+  const logins = await resolveLogins();
+  const clear = process.argv.includes("--clear");
+  console.log(clear ? "Seed: clearing and rebuilding gradebook in one transaction." : "Seed: inserting missing demo data in batches.");
+  const newGrades = await prisma.$transaction((tx) => seedGradebook(tx, logins, clear), { timeout: 60_000 });
+  console.log(`Seed OK: ${newGrades} new grades. Existing passwords are retained; new logins use SEED_PASSWORD.`);
+  console.log(`Demo logins: ${ADMIN_EMAIL}, ${TEACHERS[0][1]}, ${TEACHERS[1][1]}, ${studentData[0].email}.`);
 }
 
 main()

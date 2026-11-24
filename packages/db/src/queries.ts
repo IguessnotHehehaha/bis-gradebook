@@ -1,4 +1,5 @@
 import { PASS_MARK } from "@gradebook/shared";
+import type { Prisma } from "./generated/client";
 import { withUser } from "./withUser";
 
 // All functions take the signed-in person's id and run through `withUser`, so the
@@ -54,32 +55,21 @@ export interface TeacherCourseSummary {
 }
 
 export async function getTeacherCourses(userId: string, teacherId: number): Promise<TeacherCourseSummary[]> {
-  return withUser(userId, async (tx) => {
-    const courses = await tx.course.findMany({
-      where: { teacherId },
-      include: { _count: { select: { enrollments: true, assessments: true } } },
-      orderBy: { courseId: "asc" },
-    });
-    const grades = await tx.grade.findMany({
-      where: { courseId: { in: courses.map((c) => c.courseId) } },
-      select: { courseId: true, score: true },
-    });
-    return courses.map((c) => {
-      const mine = grades.filter((g) => g.courseId === c.courseId);
-      return {
-        courseId: c.courseId,
-        courseName: c.courseName,
-        semester: c.semester,
-        studentCount: c._count.enrollments,
-        gradeCount: mine.length,
-        lowCount: mine.filter((g) => g.score.toNumber() < PASS_MARK).length,
-        assessmentCount: c._count.assessments,
-        average: mine.length
-          ? Math.round((mine.reduce((sum, g) => sum + g.score.toNumber(), 0) / mine.length) * 10) / 10
-          : null,
-      };
-    });
-  });
+  return withUser(userId, (tx) => tx.$queryRaw<TeacherCourseSummary[]>`
+    SELECT c.course_id AS "courseId", c.course_name AS "courseName", c.semester,
+           (SELECT count(*)::integer FROM enrollments e WHERE e.course_id = c.course_id) AS "studentCount",
+           (SELECT count(*)::integer FROM assessments a WHERE a.course_id = c.course_id) AS "assessmentCount",
+           stats."gradeCount", stats."lowCount", stats.average
+    FROM courses c
+    CROSS JOIN LATERAL (
+      SELECT count(*)::integer AS "gradeCount",
+             (count(*) FILTER (WHERE g.score < ${PASS_MARK}))::integer AS "lowCount",
+             round(avg(g.score), 1)::double precision AS average
+      FROM grades g WHERE g.course_id = c.course_id
+    ) stats
+    WHERE c.teacher_id = ${teacherId}
+    ORDER BY c.course_id
+  `);
 }
 
 export interface Gradebook {
@@ -148,11 +138,19 @@ export async function saveGradeScore(
   const { studentId, courseId, assessmentName, score } = input;
   try {
     return await withUser(userId, async (tx) => {
-      const assessment = await tx.assessment.upsert({
-        where: { courseId_assessmentName: { courseId, assessmentName } },
-        update: {}, create: { courseId, assessmentName },
-      });
-      const assessmentId = assessment.assessmentId;
+      const assessmentKey = { courseId, assessmentName };
+      const assessmentQuery = {
+        where: { courseId_assessmentName: assessmentKey },
+        select: { assessmentId: true },
+      };
+      let assessment = await tx.assessment.findUnique(assessmentQuery);
+      if (!assessment) {
+        await tx.assessment.createMany({ data: [assessmentKey], skipDuplicates: true });
+        assessment = await tx.assessment.findUniqueOrThrow(assessmentQuery);
+      }
+      const { assessmentId } = assessment;
+      // Serialize edits to this cell so audit entries record the actual previous score.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${studentId}::integer, ${assessmentId}::integer)`;
       const existing = await tx.grade.findUnique({
         where: { studentId_assessmentId: { studentId, assessmentId } },
       });
@@ -183,47 +181,81 @@ export async function saveGradeScore(
 
 // ---------- Admin ----------
 
-export interface AdminOverview {
-  counts: { students: number; teachers: number; courses: number; enrollments: number; grades: number };
-  courses: { courseId: number; courseName: string; semester: string; teacherName: string; enrolled: number }[];
-  students: { studentId: number; fullName: string; email: string; groupName: string }[];
-  grades: { gradeId: number; studentName: string; courseName: string; assessmentName: string; score: number; gradeDate: string }[];
-  teachers: { teacherId: number; fullName: string }[];
-  groups: { groupId: number; groupName: string }[];
-  people: { id: string; email: string; role: string; name: string }[];
+function adminPage(total: number, requested: number, size: number) {
+  const pageCount = Math.max(1, Math.ceil(total / size));
+  const page = Number.isSafeInteger(requested) ? Math.min(pageCount, Math.max(1, requested)) : 1;
+  return { total, page, pageCount, skip: (page - 1) * size, take: size };
 }
 
-export async function getAdminOverview(userId: string): Promise<AdminOverview> {
+export function getAdminCounts(userId: string) {
   return withUser(userId, async (tx) => {
-    const [students, teachers, groups, courses, enrollments, grades, users] = await Promise.all([
-      tx.student.findMany({ include: { group: true }, orderBy: { fullName: "asc" } }),
-      tx.teacher.findMany({ orderBy: { fullName: "asc" } }),
-      tx.studentGroup.findMany({ orderBy: { groupName: "asc" } }),
-      tx.course.findMany({
-        include: { teacher: true, _count: { select: { enrollments: true } } },
-        orderBy: { courseId: "asc" },
-      }),
-      tx.enrollment.count(),
-      tx.grade.findMany({ include: { assessment: true, enrollment: { include: { course: true, student: true } } }, orderBy: [{ courseId: "asc" }, { studentId: "asc" }, { gradeId: "asc" }] }),
-      tx.appUser.findMany({ include: { student: true, teacher: true }, orderBy: [{ role: "asc" }, { email: "asc" }] }),
+    const [students, teachers, courses, enrollments, grades] = await Promise.all([
+      tx.student.count(), tx.teacher.count(), tx.course.count(), tx.enrollment.count(), tx.grade.count(),
     ]);
-    return {
-      counts: {
-        students: students.length,
-        teachers: teachers.length,
-        courses: courses.length,
-        enrollments,
-        grades: grades.length,
+    return { students, teachers, courses, enrollments, grades };
+  });
+}
+
+const groupOptions = { select: { groupId: true, groupName: true }, orderBy: { groupName: "asc" } } as const;
+const courseOptions = {
+  select: { courseId: true, courseName: true, semester: true },
+  orderBy: [{ courseName: "asc" }, { courseId: "asc" }],
+} satisfies Prisma.CourseFindManyArgs;
+
+export function getAdminStudents(userId: string, filters: { search: string; groupId?: number; courseId?: number; page: number }) {
+  const search = filters.search.replace(/[\\%_]/g, "\\$&");
+  const where: Prisma.StudentWhereInput = {
+    groupId: filters.groupId,
+    enrollments: filters.courseId === undefined ? undefined : { some: { courseId: filters.courseId } },
+    OR: search ? [{ fullName: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] : undefined,
+  };
+  return withUser(userId, async (tx) => {
+    const [total, groups, courses] = await Promise.all([
+      tx.student.count({ where }),
+      tx.studentGroup.findMany(groupOptions),
+      tx.course.findMany(courseOptions),
+    ]);
+    const pagination = adminPage(total, filters.page, 15);
+    const students = await tx.student.findMany({
+      where, skip: pagination.skip, take: pagination.take,
+      orderBy: [{ fullName: "asc" }, { studentId: "asc" }],
+      select: { studentId: true, fullName: true, email: true, group: { select: { groupName: true } } },
+    });
+    return { pagination, students, groups, courses };
+  });
+}
+
+export function getAdminCourses(userId: string) {
+  return withUser(userId, async (tx) => {
+    const [courses, teachers, students] = await Promise.all([
+      tx.course.findMany({
+        select: { ...courseOptions.select, teacher: { select: { fullName: true } }, _count: { select: { enrollments: true } } },
+        orderBy: courseOptions.orderBy,
+      }),
+      tx.teacher.findMany({ select: { teacherId: true, fullName: true }, orderBy: { fullName: "asc" } }),
+      tx.student.findMany({ select: { studentId: true, fullName: true, email: true }, orderBy: [{ fullName: "asc" }, { studentId: "asc" }] }),
+    ]);
+    return { courses, teachers, students };
+  });
+}
+
+export function getAdminGrades(userId: string, requested: number, studentId?: number) {
+  const where = { studentId };
+  return withUser(userId, async (tx) => {
+    const total = await tx.grade.count({ where });
+    const pagination = adminPage(total, requested, 50);
+    const rows = await tx.grade.findMany({
+      where, skip: pagination.skip, take: pagination.take,
+      orderBy: [{ courseId: "asc" }, { studentId: "asc" }, { gradeId: "asc" }],
+      select: {
+        gradeId: true, score: true, gradeDate: true,
+        assessment: { select: { assessmentName: true } },
+        enrollment: { select: { course: { select: { courseName: true } }, student: { select: { fullName: true } } } },
       },
-      courses: courses.map((c) => ({
-        courseId: c.courseId,
-        courseName: c.courseName,
-        semester: c.semester,
-        teacherName: c.teacher.fullName,
-        enrolled: c._count.enrollments,
-      })),
-      students: students.map((s) => ({ studentId: s.studentId, fullName: s.fullName, email: s.email, groupName: s.group.groupName })),
-      grades: grades.map((g) => ({
+    });
+    return {
+      pagination,
+      grades: rows.map((g) => ({
         gradeId: g.gradeId,
         studentName: g.enrollment.student.fullName,
         courseName: g.enrollment.course.courseName,
@@ -231,15 +263,26 @@ export async function getAdminOverview(userId: string): Promise<AdminOverview> {
         score: g.score.toNumber(),
         gradeDate: iso(g.gradeDate),
       })),
-      teachers: teachers.map((t) => ({ teacherId: t.teacherId, fullName: t.fullName })),
-      groups: groups.map((g) => ({ groupId: g.groupId, groupName: g.groupName })),
-      people: users.map((u) => ({
-        id: u.id,
-        email: u.email,
-        role: u.role.toLowerCase(),
-        name: u.student?.fullName ?? u.teacher?.fullName ?? "Administrator",
-      })),
     };
+  });
+}
+
+export function getAdminAccounts(userId: string, requested: number) {
+  return withUser(userId, async (tx) => {
+    const pagination = adminPage(await tx.appUser.count(), requested, 15);
+    const users = await tx.appUser.findMany({
+      skip: pagination.skip, take: pagination.take,
+      select: {
+        id: true, email: true, role: true,
+        student: { select: { fullName: true } },
+        teacher: { select: { fullName: true } },
+      },
+      orderBy: [{ role: "asc" }, { email: "asc" }],
+    });
+    return { pagination, users: users.map((u) => ({
+      id: u.id, email: u.email, role: u.role.toLowerCase(),
+      name: u.student?.fullName ?? u.teacher?.fullName,
+    })) };
   });
 }
 
@@ -271,7 +314,7 @@ export async function deleteManagedUser(userId: string, targetId: string) {
     if (target.role === "ADMIN" && await tx.appUser.count({ where: { role: "ADMIN" } }) <= 1) {
       throw new Error("The last administrator cannot be deleted.");
     }
-    if (await tx.auditLog.count({ where: { changedBy: targetId } })) {
+    if (await tx.auditLog.findFirst({ where: { changedBy: targetId }, select: { auditId: true } })) {
       throw new Error("This account is referenced by the grade change history and cannot be deleted.");
     }
     await tx.appUser.delete({ where: { id: targetId } });

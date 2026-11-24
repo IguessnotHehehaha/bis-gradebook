@@ -1,3 +1,4 @@
+import { Moon, Sun } from "lucide-react";
 import { setPreferenceAction } from "@/app/preferences-actions";
 import { LOCALES } from "@/lib/i18n/config";
 import { getPreferences } from "@/lib/preferences";
@@ -8,6 +9,7 @@ export async function PreferenceControls() {
   const { theme, locale } = await getPreferences();
   const { t } = await getT();
   const nextTheme = theme === "dark" ? "light" : "dark";
+  const ThemeIcon = nextTheme === "dark" ? Moon : Sun;
 
   return (
     <div className="prefs">
@@ -18,7 +20,7 @@ export async function PreferenceControls() {
           title={t(nextTheme === "dark" ? "prefs.theme.toDarkLabel" : "prefs.theme.toLightLabel")}
           aria-label={t(nextTheme === "dark" ? "prefs.theme.toDarkLabel" : "prefs.theme.toLightLabel")}
         >
-          <span aria-hidden="true">{nextTheme === "dark" ? "☾" : "☀"}</span>{" "}
+          <ThemeIcon size={14} aria-hidden="true" className="inline-block align-[-2px]" />{" "}
           <span className="btn-label">{t(nextTheme === "dark" ? "prefs.theme.toDark" : "prefs.theme.toLight")}</span>
         </button>
       </form>
