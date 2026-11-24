@@ -26,6 +26,8 @@ export const ru: Record<MessageKey, string> & Record<string, string> = {
 
   "nav.label": "Основная навигация",
   "nav.home": "Главная",
+  "nav.enrollment": "Запись на курсы",
+  "nav.attestations": "Аттестации",
   "nav.grades": "Мои оценки",
   "nav.courses": "Мои курсы",
   "nav.admin": "Администрирование",
@@ -48,6 +50,8 @@ export const ru: Record<MessageKey, string> & Record<string, string> = {
   "home.welcome": "Добро пожаловать, {name}",
   "home.subtitle": "Выберите, куда хотите перейти.",
   "home.open": "Открыть →",
+  "home.enrollment.desc": "Просмотрите доступные курсы и запишитесь.",
+  "home.attestations.desc": "Две аттестации и их среднее по каждому курсу.",
   "home.grades.desc": "Ваши результаты по каждому курсу с графиком.",
   "home.courses.desc": "Откройте журнал курса и выставляйте оценки.",
   "home.admin.desc": "Управление людьми, курсами и зачислениями.",

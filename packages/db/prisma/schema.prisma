@@ -44,7 +44,7 @@ model AppUser {
   createdAt DateTime @default(now()) @map("created_at")
 
   student Student?    @relation(fields: [studentId], references: [studentId])
-  teacher Teacher?    @relation(fields: [teacherId], references: [teacherId])
+  teacher Teacher?    @relation(fields: [teacherId], references: [teacherId])`
   audits  AuditLog[]
   attestations AttestationResult[]
 

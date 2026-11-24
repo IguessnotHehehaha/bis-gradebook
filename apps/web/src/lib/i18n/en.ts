@@ -25,6 +25,8 @@ export const en = {
   "nav.label": "Main navigation",
   "nav.home": "Home",
   "nav.grades": "My grades",
+  "nav.enrollment": "Course enrollment",
+  "nav.attestations": "Attestations",
   "nav.courses": "My courses",
   "nav.admin": "Administration",
   "nav.signOut": "Sign out",
@@ -47,6 +49,8 @@ export const en = {
   "home.subtitle": "Choose where you want to go.",
   "home.open": "Open →",
   "home.grades.desc": "Your results in every course, with a chart for each one.",
+  "home.enrollment.desc": "Browse available courses and enroll.",
+  "home.attestations.desc": "Your two attestation scores and their average for each course.",
   "home.courses.desc": "Open a course gradebook and enter scores.",
   "home.admin.desc": "Manage people, courses and enrollments.",
 

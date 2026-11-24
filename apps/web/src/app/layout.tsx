@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <span className="who-name">
                     {user.displayName ?? t("role.administrator")} <span className="badge">{t(`role.${user.role}`)}</span>
                   </span>
-                  <form action={signOut}>
+                  <form action={signOut} className="signout">
                     <button className="link">{t("nav.signOut")}</button>
                   </form>
                 </>

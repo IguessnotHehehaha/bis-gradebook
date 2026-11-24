@@ -119,20 +119,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
       <section className="card stack">
         <h2>{t("admin.courses.title")}</h2>
-        <table>
-          <thead>
-            <tr><th>{t("admin.courses.course")}</th><th>{t("admin.courses.teacher")}</th><th className="num">{t("admin.courses.students")}</th></tr>
-          </thead>
-          <tbody>
-            {data.courses.map((co) => (
-              <tr key={co.courseId}>
-                <td>{co.courseName} <span className="muted small">{co.semester}</span></td>
-                <td>{co.teacherName}</td>
-                <td className="num">{co.enrolled}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+  <table>
+            <thead>
+              <tr><th>{t("admin.courses.course")}</th><th>{t("admin.courses.teacher")}</th><th className="num">{t("admin.courses.students")}</th></tr>
+            </thead>
+            <tbody>
+              {data.courses.map((co) => (
+                <tr key={co.courseId}>
+                  <td>{co.courseName} <span className="muted small">{co.semester}</span></td>
+                  <td>{co.teacherName}</td>
+                  <td className="num">{co.enrolled}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="card stack">
@@ -153,21 +155,23 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
       <section className="card stack">
         <h2>{t("admin.people.title")}</h2>
-        <table>
-          <thead>
-            <tr><th>{t("admin.people.name")}</th><th>{t("admin.people.email")}</th><th>{t("admin.people.role")}</th><th>{t("admin.people.action")}</th></tr>
-          </thead>
-          <tbody>
-            {data.people.map((p) => (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td className="muted">{p.email}</td>
-                <td><span className="badge">{t(`role.${p.role}` as MessageKey)}</span></td>
-                <td><DeleteAccountForm userId={p.id} email={p.email} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+  <table>
+            <thead>
+              <tr><th>{t("admin.people.name")}</th><th>{t("admin.people.email")}</th><th>{t("admin.people.role")}</th><th>{t("admin.people.action")}</th></tr>
+            </thead>
+            <tbody>
+              {data.people.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.name}</td>
+                  <td className="muted">{p.email}</td>
+                  <td><span className="badge">{t(`role.${p.role}` as MessageKey)}</span></td>
+                  <td><DeleteAccountForm userId={p.id} email={p.email} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );

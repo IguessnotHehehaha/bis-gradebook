@@ -11,5 +11,7 @@ export async function selfEnrollAction(form: FormData) {
   revalidatePath("/student");
   revalidatePath("/teacher");
   revalidatePath("/admin");
-  redirect(`/student?enrollment=${result}`);
+  revalidatePath("/student/enrollment");
+  revalidatePath("/student/attestations");
+  redirect(`/student/enrollment?enrollment=${result}`);
 }
