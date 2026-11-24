@@ -1,41 +1,45 @@
 import { getAdminOverview } from "@gradebook/db";
+import { getT } from "@/lib/i18n/server";
+import type { MessageKey } from "@/lib/i18n/translate";
 import { requireRole } from "@/lib/session";
 import { createCourseAction, createStudentAction, createTeacherAction, enrollAction } from "./actions";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 
-const MESSAGES: Record<string, { text: string; good: boolean }> = {
-  enrolled: { text: "Student enrolled. Their teacher can now enter grades for them.", good: true },
-  created: { text: "New record and account created successfully.", good: true },
-  deleted: { text: "User account deleted. Academic records are retained.", good: true },
-  already: { text: "This student is already enrolled in that course.", good: false },
-  invalid: { text: "Check the submitted fields and try again.", good: false },
-  duplicate: { text: "An account with that email already exists.", good: false },
-  "self-delete": { text: "You cannot delete your own account.", good: false },
-  "last-admin": { text: "The last administrator cannot be deleted.", good: false },
-  "has-history": { text: "This account appears in the grade change history and cannot be deleted.", good: false },
-  "auth-delete-failed": { text: "The app profile was removed, but Supabase could not delete the login. Check the Auth service settings.", good: false },
-  failed: { text: "Could not enroll the student.", good: false },
+const MESSAGES: Record<string, { key: MessageKey; good: boolean }> = {
+  enrolled: { key: "admin.msg.enrolled", good: true },
+  created: { key: "admin.msg.created", good: true },
+  deleted: { key: "admin.msg.deleted", good: true },
+  already: { key: "admin.msg.already", good: false },
+  invalid: { key: "admin.msg.invalid", good: false },
+  duplicate: { key: "admin.msg.duplicate", good: false },
+  "self-delete": { key: "admin.msg.selfDelete", good: false },
+  "last-admin": { key: "admin.msg.lastAdmin", good: false },
+  "has-history": { key: "admin.msg.hasHistory", good: false },
+  "auth-delete-failed": { key: "admin.msg.authDeleteFailed", good: false },
+  "rate-limited": { key: "admin.msg.rateLimited", good: false },
+  failed: { key: "admin.msg.failed", good: false },
 };
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ status?: string; mins?: string }> }) {
   const user = await requireRole("admin");
   const data = await getAdminOverview(user.id);
-  const { status } = await searchParams;
+  const { status, mins } = await searchParams;
+  const { t } = await getT();
   const message = status ? MESSAGES[status] : undefined;
   const c = data.counts;
 
   return (
     <main className="page stack">
-      <h1>Administration</h1>
+      <h1>{t("admin.title")}</h1>
 
       <div className="tiles">
         {(
           [
-            ["Students", c.students],
-            ["Teachers", c.teachers],
-            ["Courses", c.courses],
-            ["Enrollments", c.enrollments],
-            ["Grades", c.grades],
+            [t("admin.tile.students"), c.students],
+            [t("admin.tile.teachers"), c.teachers],
+            [t("admin.tile.courses"), c.courses],
+            [t("admin.tile.enrollments"), c.enrollments],
+            [t("admin.tile.grades"), c.grades],
           ] as const
         ).map(([label, n]) => (
           <div key={label} className="card tile">
@@ -46,27 +50,27 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       </div>
 
       <section className="card stack">
-        <h2>Enroll a student in a course</h2>
-        <p className="muted">A teacher can only enter grades for students who are enrolled in their course.</p>
+        <h2>{t("admin.enroll.title")}</h2>
+        <p className="muted">{t("admin.enroll.hint")}</p>
         {message && (
           <p className={message.good ? "success" : "error"} role="status">
-            {message.text}
+            {t(message.key, { mins: Number(mins) || 1 })}
           </p>
         )}
         <form action={enrollAction} className="inline-form">
           <label>
-            Student
+            {t("admin.enroll.student")}
             <select name="studentId" required defaultValue="">
-              <option value="" disabled>Choose…</option>
+              <option value="" disabled>{t("common.choose")}</option>
               {data.students.map((s) => (
                 <option key={s.studentId} value={s.studentId}>{s.fullName}</option>
               ))}
             </select>
           </label>
           <label>
-            Course
+            {t("admin.enroll.course")}
             <select name="courseId" required defaultValue="">
-              <option value="" disabled>Choose…</option>
+              <option value="" disabled>{t("common.choose")}</option>
               {data.courses.map((co) => (
                 <option key={co.courseId} value={co.courseId}>
                   {co.courseName} ({co.teacherName})
@@ -74,49 +78,49 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               ))}
             </select>
           </label>
-          <button className="primary">Enroll</button>
+          <button className="primary">{t("admin.enroll.submit")}</button>
         </form>
       </section>
 
       <section className="card stack">
-        <h2>Add a student</h2>
-        <p className="muted">Creates a student profile and sign-in account. Set an initial password of at least 8 characters.</p>
+        <h2>{t("admin.addStudent.title")}</h2>
+        <p className="muted">{t("admin.addStudent.hint")}</p>
         <form action={createStudentAction} className="inline-form">
-          <label>Full name<input name="name" required maxLength={120} /></label>
-          <label>Email<input name="email" type="email" required /></label>
-          <label>Initial password<input name="password" type="password" minLength={8} required /></label>
-          <label>Group<select name="groupId" required defaultValue=""><option value="" disabled>Choose…</option>{data.groups.map((g) => <option key={g.groupId} value={g.groupId}>{g.groupName}</option>)}</select></label>
-          <button className="primary">Add student</button>
+          <label>{t("admin.field.fullName")}<input name="name" required maxLength={120} /></label>
+          <label>{t("admin.field.email")}<input name="email" type="email" required /></label>
+          <label>{t("admin.field.password")}<input name="password" type="password" minLength={8} required /></label>
+          <label>{t("admin.field.group")}<select name="groupId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{data.groups.map((g) => <option key={g.groupId} value={g.groupId}>{g.groupName}</option>)}</select></label>
+          <button className="primary">{t("admin.addStudent.submit")}</button>
         </form>
       </section>
 
       <section className="card stack">
-        <h2>Add a teacher</h2>
-        <p className="muted">Creates a teacher profile and sign-in account.</p>
+        <h2>{t("admin.addTeacher.title")}</h2>
+        <p className="muted">{t("admin.addTeacher.hint")}</p>
         <form action={createTeacherAction} className="inline-form">
-          <label>Full name<input name="name" required maxLength={120} /></label>
-          <label>Email<input name="email" type="email" required /></label>
-          <label>Department<input name="department" required maxLength={120} /></label>
-          <label>Initial password<input name="password" type="password" minLength={8} required /></label>
-          <button className="primary">Add teacher</button>
+          <label>{t("admin.field.fullName")}<input name="name" required maxLength={120} /></label>
+          <label>{t("admin.field.email")}<input name="email" type="email" required /></label>
+          <label>{t("admin.field.department")}<input name="department" required maxLength={120} /></label>
+          <label>{t("admin.field.password")}<input name="password" type="password" minLength={8} required /></label>
+          <button className="primary">{t("admin.addTeacher.submit")}</button>
         </form>
       </section>
 
       <section className="card stack">
-        <h2>Add a course</h2>
+        <h2>{t("admin.addCourse.title")}</h2>
         <form action={createCourseAction} className="inline-form">
-          <label>Course name<input name="courseName" required maxLength={120} /></label>
-          <label>Semester<input name="semester" required maxLength={80} placeholder="Fall 2026" /></label>
-          <label>Teacher<select name="teacherId" required defaultValue=""><option value="" disabled>Choose…</option>{data.teachers.map((t) => <option key={t.teacherId} value={t.teacherId}>{t.fullName}</option>)}</select></label>
-          <button className="primary">Add course</button>
+          <label>{t("admin.field.courseName")}<input name="courseName" required maxLength={120} /></label>
+          <label>{t("admin.field.semester")}<input name="semester" required maxLength={80} placeholder={t("admin.field.semesterPlaceholder")} /></label>
+          <label>{t("admin.field.teacher")}<select name="teacherId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{data.teachers.map((t) => <option key={t.teacherId} value={t.teacherId}>{t.fullName}</option>)}</select></label>
+          <button className="primary">{t("admin.addCourse.submit")}</button>
         </form>
       </section>
 
       <section className="card stack">
-        <h2>Courses</h2>
+        <h2>{t("admin.courses.title")}</h2>
         <table>
           <thead>
-            <tr><th>Course</th><th>Teacher</th><th className="num">Students</th></tr>
+            <tr><th>{t("admin.courses.course")}</th><th>{t("admin.courses.teacher")}</th><th className="num">{t("admin.courses.students")}</th></tr>
           </thead>
           <tbody>
             {data.courses.map((co) => (
@@ -131,38 +135,38 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       </section>
 
       <section className="card stack">
-        <h2>All students</h2>
+        <h2>{t("admin.students.title")}</h2>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Group</th></tr></thead>
+            <thead><tr><th>{t("admin.students.id")}</th><th>{t("admin.students.name")}</th><th>{t("admin.students.email")}</th><th>{t("admin.students.group")}</th></tr></thead>
             <tbody>{data.students.map((s) => <tr key={s.studentId}><td>{s.studentId}</td><td>{s.fullName}</td><td className="muted">{s.email}</td><td>{s.groupName}</td></tr>)}</tbody>
           </table>
         </div>
       </section>
 
       <section className="card stack">
-        <h2>All grades</h2>
+        <h2>{t("admin.grades.title")}</h2>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Course</th><th>Assessment</th><th className="num">Score</th><th>Date</th></tr></thead>
+            <thead><tr><th>{t("admin.grades.student")}</th><th>{t("admin.grades.course")}</th><th>{t("admin.grades.assessment")}</th><th className="num">{t("admin.grades.score")}</th><th>{t("admin.grades.date")}</th></tr></thead>
             <tbody>{data.grades.map((g) => <tr key={g.gradeId}><td>{g.studentName}</td><td>{g.courseName}</td><td>{g.assessmentName}</td><td className="num">{g.score}</td><td>{g.gradeDate}</td></tr>)}</tbody>
           </table>
-          {data.grades.length === 0 && <p className="muted">No grades have been entered yet.</p>}
+          {data.grades.length === 0 && <p className="muted">{t("admin.grades.empty")}</p>}
         </div>
       </section>
 
       <section className="card stack">
-        <h2>People and roles</h2>
+        <h2>{t("admin.people.title")}</h2>
         <table>
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
+            <tr><th>{t("admin.people.name")}</th><th>{t("admin.people.email")}</th><th>{t("admin.people.role")}</th><th>{t("admin.people.action")}</th></tr>
           </thead>
           <tbody>
             {data.people.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td className="muted">{p.email}</td>
-                <td><span className="badge">{p.role}</span></td>
+                <td><span className="badge">{t(`role.${p.role}` as MessageKey)}</span></td>
                 <td><DeleteAccountForm userId={p.id} email={p.email} /></td>
               </tr>
             ))}

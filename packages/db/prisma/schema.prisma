@@ -17,6 +17,20 @@ enum UserRole {
   @@map("user_role")
 }
 
+enum Theme {
+  LIGHT @map("light")
+  DARK  @map("dark")
+
+  @@map("theme")
+}
+
+enum Locale {
+  EN @map("en")
+  RU @map("ru")
+
+  @@map("locale")
+}
+
 /// One row per person who can sign in. `id` is the Supabase Auth user id.
 model AppUser {
   id        String   @id @db.Uuid
@@ -24,6 +38,9 @@ model AppUser {
   role      UserRole
   studentId Int?     @unique @map("student_id")
   teacherId Int?     @unique @map("teacher_id")
+  /// Preferred interface settings, restored on every device after sign-in.
+  theme     Theme    @default(LIGHT)
+  locale    Locale   @default(EN)
   createdAt DateTime @default(now()) @map("created_at")
 
   student Student?    @relation(fields: [studentId], references: [studentId])

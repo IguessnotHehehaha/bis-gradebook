@@ -21,7 +21,7 @@ async function checkRateLimit(action: string): Promise<void> {
   const { ok, resetAt } = rateLimit(`admin:${action}:${ip}`);
   if (!ok) {
     const mins = Math.ceil((resetAt - Date.now()) / 60000);
-    redirect(`/admin?status=rate-limited&error=${encodeURIComponent(`Too many attempts. Try again in ${mins} min.`)}`);
+    redirect(`/admin?status=rate-limited&mins=${mins}`);
   }
 }
 

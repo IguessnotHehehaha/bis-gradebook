@@ -20,7 +20,7 @@ async function checkRateLimit(action: string): Promise<void> {
   const { ok, resetAt } = rateLimit(`${action}:${ip}`);
   if (!ok) {
     const mins = Math.ceil((resetAt - Date.now()) / 60000);
-    redirect(`/login?error=${encodeURIComponent(`Too many attempts. Try again in ${mins} min.`)}`);
+    redirect(`/login?error=rate&mins=${mins}`);
   }
 }
 
@@ -31,7 +31,7 @@ export async function signIn(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect("/login?error=" + encodeURIComponent("Wrong email or password."));
+  if (error) redirect("/login?error=wrong");
   redirect("/");
 }
 
@@ -42,7 +42,7 @@ export async function devSignIn(formData: FormData) {
   if (!devFakeAuth()) throw new Error("Not available.");
   const id = String(formData.get("userId") ?? "");
   const exists = /^[0-9a-f-]{36}$/i.test(id) && (await prisma.appUser.findUnique({ where: { id } }));
-  if (!exists) redirect("/login?error=" + encodeURIComponent("Unknown person."));
+  if (!exists) redirect("/login?error=unknown");
   (await cookies()).set(DEV_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/" });
   redirect("/");
 }

@@ -1,3 +1,4 @@
+import { getT } from "@/lib/i18n/server";
 import { MAX_SCORE, PASS_MARK, isLow } from "@gradebook/shared";
 
 export interface ChartPoint {
@@ -11,7 +12,8 @@ const H = 220;
 const PAD = { top: 14, right: 14, bottom: 34, left: 34 };
 
 /** Dependency-free SVG chart: one bar per assessment, with the pass mark as a dashed line. */
-export function ScoreChart({ points, courseName }: { points: ChartPoint[]; courseName: string }) {
+export async function ScoreChart({ points, courseName }: { points: ChartPoint[]; courseName: string }) {
+  const { t } = await getT();
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const y = (v: number) => PAD.top + innerH - (v / MAX_SCORE) * innerH;
@@ -22,7 +24,7 @@ export function ScoreChart({ points, courseName }: { points: ChartPoint[]; cours
 
   return (
     <figure className="chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Scores for ${courseName}. ${summary}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("chart.aria", { course: courseName, summary })}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} className="chart-grid" />
@@ -31,7 +33,7 @@ export function ScoreChart({ points, courseName }: { points: ChartPoint[]; cours
         ))}
         <line x1={PAD.left} x2={W - PAD.right} y1={y(PASS_MARK)} y2={y(PASS_MARK)} className="chart-pass" />
         <text x={W - PAD.right} y={y(PASS_MARK) - 4} textAnchor="end" className="chart-pass-label">
-          pass mark {PASS_MARK}
+          {t("chart.passMark", { mark: PASS_MARK })}
         </text>
         {points.map((p, i) => {
           const cx = PAD.left + slot * i + slot / 2;

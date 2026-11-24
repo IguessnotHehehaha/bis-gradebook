@@ -1,14 +1,18 @@
 import { prisma } from "@gradebook/db";
-import { homePathFor, type Actor, type Role } from "@gradebook/shared";
+import type { Actor, Role } from "@gradebook/shared";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { DEV_COOKIE, devFakeAuth } from "./env";
+import type { Locale, Theme } from "./i18n/config";
 import { createSupabaseServerClient } from "./supabase";
 
 export interface SessionUser extends Actor {
   email: string;
-  displayName: string;
+  /** The person's name, or null for an administrator (who has no profile row). */
+  displayName: string | null;
+  theme: Theme;
+  locale: Locale;
 }
 
 /** The id of the signed-in login (Supabase Auth user), or null. */
@@ -37,7 +41,9 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     role: u.role.toLowerCase() as Role,
     studentId: u.studentId,
     teacherId: u.teacherId,
-    displayName: u.student?.fullName ?? u.teacher?.fullName ?? "Administrator",
+    displayName: u.student?.fullName ?? u.teacher?.fullName ?? null,
+    theme: u.theme.toLowerCase() as Theme,
+    locale: u.locale.toLowerCase() as Locale,
   };
 });
 
@@ -45,6 +51,6 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 export async function requireRole(role: Role): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (user.role !== role) redirect(homePathFor(user.role));
+  if (user.role !== role) redirect("/");
   return user;
 }

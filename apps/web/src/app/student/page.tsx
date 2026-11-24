@@ -1,10 +1,12 @@
 import { getStudentGrades, type StudentGradeRow } from "@gradebook/db";
 import { PASS_MARK, average, isLow } from "@gradebook/shared";
+import { getT } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { ScoreChart } from "./ScoreChart";
 
 export default async function StudentPage() {
   const user = await requireRole("student");
+  const { t } = await getT();
   const rows = await getStudentGrades(user.id, user.studentId!);
 
   const byCourse = new Map<number, StudentGradeRow[]>();
@@ -32,8 +34,8 @@ export default async function StudentPage() {
   if (rows.length === 0) {
     return (
       <main className="page stack">
-        <h1>My grades</h1>
-        <p className="card muted">No grades have been entered yet. They will appear here as soon as a teacher adds them.</p>
+        <h1>{t("student.title")}</h1>
+        <p className="card muted">{t("student.empty")}</p>
       </main>
     );
   }
@@ -41,48 +43,48 @@ export default async function StudentPage() {
   return (
     <main className="page stack">
       <div>
-        <h1>My grades</h1>
-        <p className="muted">Your results in every course, with a chart for each one.</p>
+        <h1>{t("student.title")}</h1>
+        <p className="muted">{t("student.subtitle")}</p>
       </div>
 
       <div className="tiles">
         <div className="card tile">
           <p className="big">{overall}</p>
-          <p className="muted">Overall average</p>
+          <p className="muted">{t("student.tile.average")}</p>
         </div>
         <div className="card tile">
           <p className="big">{courses.length}</p>
-          <p className="muted">Subjects</p>
+          <p className="muted">{t("student.tile.subjects")}</p>
         </div>
         <div className="card tile">
           <p className="big">{rows.length}</p>
-          <p className="muted">Results</p>
+          <p className="muted">{t("student.tile.results")}</p>
         </div>
         <div className="card tile">
           <p className={"big" + (lowCount > 0 ? " low" : "")}>{lowCount}</p>
-          <p className="muted">Below {PASS_MARK}</p>
+          <p className="muted">{t("student.tile.below", { mark: PASS_MARK })}</p>
         </div>
       </div>
 
       {lowCount > 0 && (
         <p className="notice" role="note">
-          Results below {PASS_MARK} are marked in red. If you want help, talk to the teacher of that course.
+          {t("student.lowNote", { mark: PASS_MARK })}
         </p>
       )}
 
       <section className="card stack" aria-labelledby="overall-h">
-        <h2 id="overall-h">Overall summary</h2>
+        <h2 id="overall-h">{t("student.summary.title")}</h2>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Subject</th>
-                <th>Teacher</th>
-                <th className="num">Results</th>
-                <th className="num">Lowest</th>
-                <th className="num">Highest</th>
-                <th className="num">Average</th>
-                <th>Status</th>
+                <th>{t("student.summary.subject")}</th>
+                <th>{t("student.summary.teacher")}</th>
+                <th className="num">{t("student.summary.results")}</th>
+                <th className="num">{t("student.summary.lowest")}</th>
+                <th className="num">{t("student.summary.highest")}</th>
+                <th className="num">{t("student.summary.average")}</th>
+                <th>{t("student.summary.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -99,9 +101,9 @@ export default async function StudentPage() {
                   <td className={"num avgcell" + (s.avg !== null && isLow(s.avg) ? " low" : "")}>{s.avg}</td>
                   <td>
                     {s.low > 0 ? (
-                      <span className="tag nomargin">{s.low} below {PASS_MARK}</span>
+                      <span className="tag nomargin">{t("student.summary.belowCount", { n: s.low, mark: PASS_MARK })}</span>
                     ) : (
-                      <span className="tag good nomargin">On track</span>
+                      <span className="tag good nomargin">{t("student.summary.onTrack")}</span>
                     )}
                   </td>
                 </tr>
@@ -109,7 +111,7 @@ export default async function StudentPage() {
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row" colSpan={2}>All subjects</th>
+                <th scope="row" colSpan={2}>{t("student.summary.all")}</th>
                 <td className="num">{rows.length}</td>
                 <td className="num">{Math.min(...rows.map((r) => r.score))}</td>
                 <td className="num">{Math.max(...rows.map((r) => r.score))}</td>
@@ -121,7 +123,7 @@ export default async function StudentPage() {
         </div>
       </section>
 
-      <h2 className="section-title">By subject</h2>
+      <h2 className="section-title">{t("student.bySubject")}</h2>
       {courses.map((list) => (
         <section key={list[0].courseId} id={`course-${list[0].courseId}`} className="card stack">
           <div className="row between">
@@ -132,7 +134,7 @@ export default async function StudentPage() {
               </p>
             </div>
             <p className="avg">
-              Average <b>{average(list.map((r) => r.score))}</b>
+              {t("student.average")} <b>{average(list.map((r) => r.score))}</b>
             </p>
           </div>
           <div className="course-body">
@@ -140,9 +142,9 @@ export default async function StudentPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Assessment</th>
-                    <th>Date</th>
-                    <th className="num">Score</th>
+                    <th>{t("student.assessment")}</th>
+                    <th>{t("student.date")}</th>
+                    <th className="num">{t("student.score")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -152,7 +154,7 @@ export default async function StudentPage() {
                       <td className="muted">{r.gradeDate}</td>
                       <td className={"num" + (isLow(r.score) ? " low" : "")}>
                         {r.score}
-                        {isLow(r.score) && <span className="tag">Below {PASS_MARK}</span>}
+                        {isLow(r.score) && <span className="tag">{t("student.tag.below", { mark: PASS_MARK })}</span>}
                       </td>
                     </tr>
                   ))}

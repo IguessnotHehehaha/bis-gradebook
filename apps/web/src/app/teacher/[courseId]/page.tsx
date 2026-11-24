@@ -1,11 +1,13 @@
 import { getGradebook } from "@gradebook/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getT } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { GradeGrid } from "./GradeGrid";
 
 export default async function GradebookPage({ params }: { params: Promise<{ courseId: string }> }) {
   const user = await requireRole("teacher");
+  const { t, plural } = await getT();
   const { courseId } = await params;
   const id = Number(courseId);
   if (!Number.isInteger(id)) notFound();
@@ -18,10 +20,10 @@ export default async function GradebookPage({ params }: { params: Promise<{ cour
     <main className="page stack">
       <div>
         <p className="crumb">
-          <Link href="/teacher">← My courses</Link>
+          <Link href="/teacher">{t("teacher.back")}</Link>
         </p>
         <h1>{book.course.courseName}</h1>
-        <p className="muted">{book.course.semester} · {book.students.length} students enrolled</p>
+        <p className="muted">{book.course.semester} · {plural("count.enrolled", book.students.length)}</p>
       </div>
       <GradeGrid
         courseId={book.course.courseId}

@@ -1,5 +1,6 @@
 export { prisma } from "./client";
 export { withUser, type Tx } from "./withUser";
 export { pgConnection } from "./connection";
-export { UserRole } from "./generated/client";
+export { Locale, Theme, UserRole } from "./generated/client";
 export * from "./queries";
+export { setUserPreferences, type Preferences } from "./preferences";

@@ -2,6 +2,7 @@
 
 import { PASS_MARK, average, isLow } from "@gradebook/shared";
 import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useT } from "@/lib/i18n/client";
 import { createAssessmentAction, saveScoreAction } from "../actions";
 
 interface Props {
@@ -24,6 +25,7 @@ function ScoreCell(props: {
   onSaved: (studentId: number, assessment: string, score: number) => void;
 }) {
   const { courseId, studentId, assessment, value, row, col, onSaved } = props;
+  const { t } = useT();
   const shown = value === undefined ? "" : String(value);
   const [text, setText] = useState(shown);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -69,7 +71,7 @@ function ScoreCell(props: {
         value={text}
         inputMode="decimal"
         placeholder="–"
-        aria-label={`${assessment} score`}
+        aria-label={t("grid.cell.aria", { assessment })}
         data-r={row}
         data-c={col}
         onFocus={(e) => e.currentTarget.select()}
@@ -78,9 +80,9 @@ function ScoreCell(props: {
         onBlur={commit}
         onKeyDown={onKeyDown}
       />
-      {low && status !== "error" && <span className="flag" title={`Below ${PASS_MARK}`}>▼</span>}
-      {status === "saving" && <span className="state">saving…</span>}
-      {status === "saved" && <span className="state ok">saved ✓</span>}
+      {low && status !== "error" && <span className="flag" title={t("grid.cell.belowTitle", { mark: PASS_MARK })}>▼</span>}
+      {status === "saving" && <span className="state">{t("grid.cell.saving")}</span>}
+      {status === "saved" && <span className="state ok">{t("grid.cell.saved")}</span>}
       {status === "error" && (
         <span className="state err" role="alert">
           {message}
@@ -91,6 +93,7 @@ function ScoreCell(props: {
 }
 
 export function GradeGrid({ courseId, students, assessments, scores: initial }: Props) {
+  const { t } = useT();
   const [scores, setScores] = useState(initial);
   const [extra, setExtra] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -121,15 +124,15 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
     if (adding) return;
     const name = newName.trim();
     if (!name) return;
-    if (name.length > 60) return setFormError("Keep the name under 60 characters.");
-    if (columns.some((c) => c.toLowerCase() === name.toLowerCase())) return setFormError("That assessment already exists.");
+    if (name.length > 60) return setFormError(t("grid.error.nameLong"));
+    if (columns.some((c) => c.toLowerCase() === name.toLowerCase())) return setFormError(t("grid.error.exists"));
     setAdding(true);
     try {
       const result = await createAssessmentAction(courseId, name);
       if (!result.ok) { setFormError(result.error); return; }
       setExtra((previous) => [...previous, name]);
     } catch {
-      setFormError("Could not save the assessment. Please try again.");
+      setFormError(t("grid.error.saveFailed"));
       return;
     } finally { setAdding(false); }
     setNewName("");
@@ -139,24 +142,24 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
   return (
     <div className="stack">
       <div className="tiles">
-        <div className="card tile"><p className="big">{students.length}</p><p className="muted">Students</p></div>
-        <div className="card tile"><p className="big">{columns.length}</p><p className="muted">Assessments</p></div>
-        <div className="card tile"><p className="big">{overallAvg ?? "–"}</p><p className="muted">Course average</p></div>
+        <div className="card tile"><p className="big">{students.length}</p><p className="muted">{t("grid.tile.students")}</p></div>
+        <div className="card tile"><p className="big">{columns.length}</p><p className="muted">{t("grid.tile.assessments")}</p></div>
+        <div className="card tile"><p className="big">{overallAvg ?? t("common.none")}</p><p className="muted">{t("grid.tile.average")}</p></div>
         <div className="card tile">
           <p className={"big" + (lowTotal ? " low" : "")}>{lowTotal}</p>
-          <p className="muted">Below {PASS_MARK}</p>
+          <p className="muted">{t("grid.tile.below", { mark: PASS_MARK })}</p>
         </div>
       </div>
 
       <div className="toolbar card">
         <label className="grow">
-          Find a student
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type a name…" />
+          {t("grid.find")}
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("grid.findPlaceholder")} />
         </label>
         <label>
-          Group
+          {t("grid.group")}
           <select value={group} onChange={(e) => setGroup(e.target.value)}>
-            <option value="">All groups</option>
+            <option value="">{t("grid.allGroups")}</option>
             {groups.map((g) => (
               <option key={g} value={g}>{g}</option>
             ))}
@@ -164,7 +167,7 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
         </label>
         <label className="check">
           <input type="checkbox" checked={onlyLow} onChange={(e) => setOnlyLow(e.target.checked)} />
-          Only results below {PASS_MARK}
+          {t("grid.onlyLow", { mark: PASS_MARK })}
         </label>
       </div>
 
@@ -172,11 +175,11 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
         <table className="gradegrid">
           <thead>
             <tr>
-              <th>Student</th>
+              <th>{t("grid.student")}</th>
               {columns.map((c) => (
                 <th key={c} className="num">{c}</th>
               ))}
-              <th className="num">Average</th>
+              <th className="num">{t("grid.average")}</th>
             </tr>
           </thead>
           <tbody>
@@ -199,7 +202,7 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
                       onSaved={(sid, assessment, score) => setScores((prev) => ({ ...prev, [key(sid, assessment)]: score }))}
                     />
                   ))}
-                  <td className={"num avgcell" + (average(own) !== null && isLow(average(own)!) ? " low" : "")}>{average(own) ?? "–"}</td>
+                  <td className={"num avgcell" + (average(own) !== null && isLow(average(own)!) ? " low" : "")}>{average(own) ?? t("common.none")}</td>
                 </tr>
               );
             })}
@@ -207,8 +210,8 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
               <tr>
                 <td colSpan={columns.length + 2} className="muted">
                   {students.length === 0
-                    ? "No students are enrolled in this course yet."
-                    : "No students match these filters."}
+                    ? t("grid.noEnrolled")
+                    : t("grid.noMatch")}
                 </td>
               </tr>
             )}
@@ -216,11 +219,11 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
           {visible.length > 0 && (
             <tfoot>
               <tr>
-                <th scope="row">Average of all students</th>
+                <th scope="row">{t("grid.avgAll")}</th>
                 {columns.map((c) => (
-                  <td key={c} className="num">{colAvg(c) ?? "–"}</td>
+                  <td key={c} className="num">{colAvg(c) ?? t("common.none")}</td>
                 ))}
-                <td className="num avgcell">{overallAvg ?? "–"}</td>
+                <td className="num avgcell">{overallAvg ?? t("common.none")}</td>
               </tr>
             </tfoot>
           )}
@@ -229,23 +232,20 @@ export function GradeGrid({ courseId, students, assessments, scores: initial }: 
 
       <form onSubmit={addColumn} className="addcol">
         <label>
-          Add an assessment
+          {t("grid.add")}
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="e.g. Midterm, then press Enter"
+            placeholder={t("grid.addPlaceholder")}
             maxLength={60}
             disabled={adding}
           />
         </label>
-        <button type="submit" className="primary" disabled={adding}>{adding ? "Saving…" : "Add assessment"}</button>
+        <button type="submit" className="primary" disabled={adding}>{adding ? t("grid.saving") : t("grid.addButton")}</button>
         {formError && <span className="error" role="alert">{formError}</span>}
       </form>
 
-      <p className="hint">
-        Click a score to change it. It saves when you press Enter or click away; ↑ ↓ move between students. ▼ and red mean below {PASS_MARK}.
-        Only students enrolled in this course appear here.
-      </p>
+      <p className="hint">{t("grid.hint", { mark: PASS_MARK })}</p>
     </div>
   );
 }
