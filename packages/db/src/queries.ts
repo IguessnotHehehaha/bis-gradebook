@@ -204,10 +204,16 @@ const courseOptions = {
 
 export function getAdminStudents(userId: string, filters: { search: string; groupId?: number; courseId?: number; page: number }) {
   const search = filters.search.replace(/[\\%_]/g, "\\$&");
+  const numericId = /^\d+$/.test(filters.search) ? Number(filters.search) : 0;
+  const matches: Prisma.StudentWhereInput[] = search ? [
+    { fullName: { contains: search, mode: "insensitive" } },
+    { email: { contains: search, mode: "insensitive" } },
+  ] : [];
+  if (numericId > 0 && numericId <= 2_147_483_647) matches.push({ studentId: numericId });
   const where: Prisma.StudentWhereInput = {
     groupId: filters.groupId,
     enrollments: filters.courseId === undefined ? undefined : { some: { courseId: filters.courseId } },
-    OR: search ? [{ fullName: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] : undefined,
+    OR: matches.length ? matches : undefined,
   };
   return withUser(userId, async (tx) => {
     const [total, groups, courses] = await Promise.all([

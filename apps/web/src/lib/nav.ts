@@ -17,6 +17,8 @@ export interface NavItem {
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/student", label: "nav.grades", description: "home.grades.desc", roles: ["student"] },
+  { href: "/student/enrollment", label: "nav.enrollment", description: "home.enrollment.desc", roles: ["student"] },
+  { href: "/student/attestations", label: "nav.attestations", description: "home.attestations.desc", roles: ["student"] },
   { href: "/teacher", label: "nav.courses", description: "home.courses.desc", roles: ["teacher"] },
   { href: "/admin", label: "nav.admin", description: "home.admin.desc", roles: ["admin"] },
 ];

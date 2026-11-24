@@ -3,6 +3,10 @@ import { prisma } from "./client";
 
 export type Tx = Prisma.TransactionClient;
 
+// The database is remote (Supabase), so opening a connection can take longer than Prisma's
+// 2 second default wait for a free connection, which caused "Unable to start a transaction".
+const TX_OPTIONS = { maxWait: 15_000, timeout: 20_000 };
+
 /**
  * Runs database work AS a signed-in person.
  *
@@ -21,5 +25,5 @@ export async function withUser<T>(userId: string, work: (tx: Tx) => Promise<T>):
              set_config('role', 'authenticated', true)
     `;
     return work(tx);
-  });
+  }, TX_OPTIONS);
 }

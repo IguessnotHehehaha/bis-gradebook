@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getTeacherCourses, createAssessment, selfEnroll, getStudentCourseCatalogue, getAttestations, saveAttestation } from "../src";
+import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getAdminStudents, getTeacherCourses, createAssessment, selfEnroll, getStudentCourseCatalogue, getAttestations, saveAttestation } from "../src";
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const run = enabled ? describe : describe.skip;
@@ -208,6 +208,13 @@ run("teacher role", () => {
 });
 
 run("admin role", () => {
+  it("finds a student by ID and combines the search with group and course filters", async () => {
+    const matching = await getAdminStudents(U.admin, { search: "1", groupId: 1, courseId: 1, page: 1 });
+    expect(matching.students.map(({ studentId }) => studentId)).toEqual([1]);
+    const excluded = await getAdminStudents(U.admin, { search: "1", groupId: 2, page: 1 });
+    expect(excluded.pagination.total).toBe(0);
+  });
+
   it("can read everything", async () => {
     const grades = await withUser(U.admin, (tx) => tx.grade.count());
     expect(grades).toBeGreaterThanOrEqual(3);

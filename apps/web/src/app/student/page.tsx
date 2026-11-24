@@ -1,12 +1,10 @@
 import { getStudentGrades, type StudentGradeRow } from "@gradebook/db";
-import { CourseRegistration } from "./CourseRegistration";
 import { PASS_MARK, average, isLow } from "@gradebook/shared";
 import { getT } from "@/lib/i18n/server";
 import { requireRole } from "@/lib/session";
 import { ScoreChart } from "./ScoreChart";
 
-export default async function StudentPage({ searchParams }: { searchParams: Promise<{ enrollment?: string }> }) {
-  const { enrollment } = await searchParams;
+export default async function StudentPage() {
   const user = await requireRole("student");
   const { t } = await getT();
   const rows = await getStudentGrades(user.id, user.studentId!);
@@ -41,7 +39,6 @@ export default async function StudentPage({ searchParams }: { searchParams: Prom
     return (
       <main className="page stack">
         <h1>{t("student.title")}</h1>
-        <CourseRegistration userId={user.id} status={enrollment} />
         <p className="card muted">{t("student.empty")}</p>
       </main>
     );
@@ -53,8 +50,6 @@ export default async function StudentPage({ searchParams }: { searchParams: Prom
         <h1>{t("student.title")}</h1>
         <p className="muted">{t("student.subtitle")}</p>
       </div>
-
-      <CourseRegistration userId={user.id} status={enrollment} />
 
       <div className="tiles">
         <div className="card tile">

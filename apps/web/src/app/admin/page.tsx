@@ -113,7 +113,7 @@ async function StudentsView({ userId, params, page }: { userId: string; params: 
         <h2>{t("admin.students.title")}</h2>
         <Form key={filters.toString()} action="/admin" prefetch={false} className="grid grid-cols-2 items-end gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)_auto]">
           <input type="hidden" name="view" value="students" />
-          <label className="col-span-2 sm:col-span-1">{t("admin.filters.search")}<input name="q" type="search" maxLength={100} defaultValue={search} /></label>
+          <label className="col-span-2 sm:col-span-1">{t("admin.filters.search")}<input name="q" type="search" maxLength={100} placeholder={t("admin.students.searchPlaceholder")} defaultValue={search} /></label>
           <label className="min-w-0">{t("admin.filters.group")}
             <select name="group" defaultValue={groupId ?? ""}>
               <option value="">{t("admin.filters.allGroups")}</option>
@@ -135,9 +135,10 @@ async function StudentsView({ userId, params, page }: { userId: string; params: 
         {data.students.length ? (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>{t("admin.students.name")}</th><th className="hidden sm:table-cell">{t("admin.students.email")}</th><th>{t("admin.students.group")}</th><th>{t("admin.section.grades")}</th></tr></thead>
+              <thead><tr><th className="hidden sm:table-cell">{t("admin.students.id")}</th><th>{t("admin.students.name")}</th><th className="hidden sm:table-cell">{t("admin.students.email")}</th><th>{t("admin.students.group")}</th><th>{t("admin.section.grades")}</th></tr></thead>
               <tbody>{data.students.map((student) => (
                 <tr key={student.studentId}>
+                  <td className="muted hidden sm:table-cell">{student.studentId}</td>
                   <th scope="row">
                     {student.fullName}
                     <span className="block break-all text-xs font-normal sm:hidden">{student.email}</span>
