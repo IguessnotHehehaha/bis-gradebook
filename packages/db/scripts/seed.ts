@@ -98,6 +98,7 @@ async function ensureAppUser(email: string, role: UserRole, link: { studentId?: 
 
 async function main() {
   if (process.argv.includes("--clear")) {
+    await prisma.attestationResult.deleteMany();
     await prisma.auditLog.deleteMany();
     await prisma.grade.deleteMany();
     await prisma.enrollment.deleteMany();

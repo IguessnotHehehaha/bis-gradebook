@@ -2,6 +2,25 @@ import type { MessageKey } from "./en";
 
 /** Must define every English key; may add extra plural forms (.few, .many) that English does not need. */
 export const ru: Record<MessageKey, string> & Record<string, string> = {
+  "feature.attestations": "Аттестации по курсам",
+  "feature.first": "Аттестация 1",
+  "feature.second": "Аттестация 2",
+  "feature.average": "Среднее за аттестации",
+  "feature.rule": "Преподаватель вводит каждую оценку от 0 до 100. Среднее появится после выставления обеих оценок.",
+  "feature.catalogue": "Запись на курсы",
+  "feature.enroll": "Записаться",
+  "feature.enrolled": "Вы записаны",
+  "feature.noCourses": "Курсы пока не добавлены.",
+  "feature.noEnrollments": "Запишитесь на курс, чтобы видеть здесь аттестации.",
+  "feature.enrollSuccess": "Вы успешно записались на курс.",
+  "feature.already": "Вы уже записаны на этот курс.",
+  "feature.enrollFailed": "Не удалось записаться. Попробуйте ещё раз.",
+  "feature.save": "Сохранить",
+  "feature.saving": "Сохранение…",
+  "feature.saved": "Сохранено",
+  "feature.saveFailed": "Не удалось сохранить. Проверьте оценку, запись на курс и права доступа.",
+  "feature.score": "Оценка (0–100)",
+
   "app.name": "Журнал оценок",
   "app.description": "Электронный журнал оценок для студентов, преподавателей и администраторов",
 

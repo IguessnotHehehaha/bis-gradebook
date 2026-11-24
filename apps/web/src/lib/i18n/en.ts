@@ -1,5 +1,24 @@
 /** English is the source of truth: every other language must define exactly these keys. */
 export const en = {
+  "feature.attestations": "Course attestations",
+  "feature.first": "Attestation 1",
+  "feature.second": "Attestation 2",
+  "feature.average": "Attestation average",
+  "feature.rule": "The teacher enters each score from 0 to 100. The average appears when both scores are entered.",
+  "feature.catalogue": "Course registration",
+  "feature.enroll": "Enroll",
+  "feature.enrolled": "Enrolled",
+  "feature.noCourses": "No courses are available yet.",
+  "feature.noEnrollments": "Enroll in a course to see your attestations here.",
+  "feature.enrollSuccess": "You are now enrolled in the course.",
+  "feature.already": "You are already enrolled in this course.",
+  "feature.enrollFailed": "Could not enroll. Please try again.",
+  "feature.save": "Save",
+  "feature.saving": "Saving…",
+  "feature.saved": "Saved",
+  "feature.saveFailed": "Could not save. Check the score, enrollment and course permissions.",
+  "feature.score": "Score (0–100)",
+
   "app.name": "Gradebook",
   "app.description": "Electronic gradebook for students, teachers and administrators",
 

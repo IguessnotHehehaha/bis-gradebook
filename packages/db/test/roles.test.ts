@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getTeacherCourses, createAssessment } from "../src";
+import { prisma, saveGradeScore, withUser, getGradebook, getStudentGrades, getTeacherCourses, createAssessment, selfEnroll, getStudentCourseCatalogue, getAttestations, saveAttestation } from "../src";
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const run = enabled ? describe : describe.skip;
@@ -22,7 +22,7 @@ const U = {
 beforeAll(async () => {
   if (!enabled) return;
   await prisma.$executeRawUnsafe(
-    "TRUNCATE audit_log, grades, assessments, enrollments, app_users, courses, students, teachers, student_groups RESTART IDENTITY CASCADE",
+    "TRUNCATE attestation_results, audit_log, grades, assessments, enrollments, app_users, courses, students, teachers, student_groups RESTART IDENTITY CASCADE",
   );
   await prisma.teacher.createMany({
     data: [
@@ -272,5 +272,42 @@ run("normalized tables", () => {
   });
   it("rejects a nonexistent group", async () => {
     await expect(prisma.student.create({ data: { fullName: "Invalid", email: "invalid@x.kz", groupId: 999999 } })).rejects.toThrow();
+  });
+});
+
+run("student self-enrollment and attestations", () => {
+  it("lists unjoined courses without exposing their grades", async () => {
+    const catalogue = await getStudentCourseCatalogue(U.s1);
+    expect(catalogue.find((c) => c.courseId === 2)?.enrolled).toBe(false);
+    expect(await withUser(U.s1, (tx) => tx.grade.findMany({ where: { courseId: 2 } }))).toHaveLength(0);
+  });
+  it("enrolls the signed-in student and rejects duplicates", async () => {
+    expect(await selfEnroll(U.s1, 2)).toBe("enrolled");
+    expect(await selfEnroll(U.s1, 2)).toBe("already");
+    expect((await getAttestations(U.s1)).find((a) => a.courseId === 2)?.average).toBeNull();
+  });
+  it("cannot enroll somebody else, enroll as a teacher or use a nonexistent course", async () => {
+    await expect(withUser(U.s1, (tx) => tx.enrollment.create({ data: { studentId: 3, courseId: 2 } }))).rejects.toThrow();
+    expect(await selfEnroll(U.t1, 2)).toBe("failed");
+    expect(await selfEnroll(U.s1, 999999)).toBe("failed");
+  });
+  it("stores both scores, updates without duplicates, and calculates their mean", async () => {
+    expect(await saveAttestation(U.t1, { studentId: 1, courseId: 1, attestationNumber: 1, score: 80 })).toEqual({ ok: true });
+    expect((await getAttestations(U.s1, 1))[0]).toMatchObject({ first: 80, second: null, average: null });
+    expect(await saveAttestation(U.t1, { studentId: 1, courseId: 1, attestationNumber: 2, score: 90 })).toEqual({ ok: true });
+    expect((await getAttestations(U.s1, 1))[0].average).toBe(85);
+    await saveAttestation(U.t1, { studentId: 1, courseId: 1, attestationNumber: 1, score: 0 });
+    expect((await getAttestations(U.s1, 1))[0].average).toBe(45);
+    expect(await prisma.attestationResult.count({ where: { studentId: 1, courseId: 1 } })).toBe(2);
+  });
+  it("prevents student writes, cross-teacher writes, invalid periods and unenrolled results", async () => {
+    const input = { studentId: 1, courseId: 1, attestationNumber: 1, score: 100 };
+    expect(await saveAttestation(U.s1, input)).toEqual({ ok: false });
+    expect(await saveAttestation(U.t2, input)).toEqual({ ok: false });
+    expect(await saveAttestation(U.t1, { ...input, attestationNumber: 3 })).toEqual({ ok: false });
+    expect(await saveAttestation(U.t1, { ...input, score: 101 })).toEqual({ ok: false });
+    expect(await saveAttestation(U.t2, { ...input, studentId: 3, courseId: 2 })).toEqual({ ok: false });
+    expect(await withUser(U.s2, (tx) => tx.attestationResult.findMany({ where: { studentId: 1 } }))).toHaveLength(0);
+    expect(await withUser(U.t2, (tx) => tx.attestationResult.findMany({ where: { courseId: 1 } }))).toHaveLength(0);
   });
 });

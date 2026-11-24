@@ -91,3 +91,16 @@ export const saveScoreSchema = z.object({
 });
 
 export type SaveScoreInput = z.input<typeof saveScoreSchema>;
+
+/** Both attestations are required; missing values are not treated as zero. */
+export function attestationAverage(first: number | null, second: number | null): number | null {
+  if (first === null || second === null) return null;
+  return Math.round(((first + second) / 2) * 100) / 100;
+}
+
+export const attestationScoreSchema = z.object({
+  courseId: z.coerce.number().int().positive(),
+  studentId: z.coerce.number().int().positive(),
+  attestationNumber: z.coerce.number().int().min(1).max(2),
+  score: saveScoreSchema.shape.score,
+});

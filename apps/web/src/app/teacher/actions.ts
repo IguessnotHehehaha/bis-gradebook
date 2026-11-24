@@ -1,7 +1,7 @@
 "use server";
 
-import { createAssessment, saveGradeScore } from "@gradebook/db";
-import { saveScoreSchema, type SaveScoreInput } from "@gradebook/shared";
+import { saveAttestation, createAssessment, saveGradeScore } from "@gradebook/db";
+import { attestationScoreSchema, saveScoreSchema, type SaveScoreInput } from "@gradebook/shared";
 import { revalidatePath } from "next/cache";
 import { getT } from "@/lib/i18n/server";
 import { translateError } from "@/lib/i18n/translate";
@@ -34,4 +34,17 @@ export async function createAssessmentAction(courseId: number, assessmentName: s
   const result = await createAssessment(user.id, courseId, assessmentName);
   if (result.ok) revalidatePath(`/teacher/${courseId}`);
   return result.ok ? result : { ok: false as const, error: translateError(tr, result.error) };
+}
+
+export async function saveAttestationAction(input: { courseId: number; studentId: number; attestationNumber: number; score: string }) {
+  const user = await getSessionUser();
+  if (!user || user.role === "student") return { ok: false as const };
+  const parsed = attestationScoreSchema.safeParse(input);
+  if (!parsed.success) return { ok: false as const };
+  const result = await saveAttestation(user.id, parsed.data);
+  if (result.ok) {
+    revalidatePath(`/teacher/${parsed.data.courseId}`);
+    revalidatePath("/student");
+  }
+  return result;
 }

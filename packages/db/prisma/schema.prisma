@@ -46,6 +46,7 @@ model AppUser {
   student Student?    @relation(fields: [studentId], references: [studentId])
   teacher Teacher?    @relation(fields: [teacherId], references: [teacherId])
   audits  AuditLog[]
+  attestations AttestationResult[]
 
   @@map("app_users")
 }
@@ -106,6 +107,7 @@ model Enrollment {
   student Student @relation(fields: [studentId], references: [studentId])
   course  Course  @relation(fields: [courseId], references: [courseId])
   grades  Grade[]
+  attestations AttestationResult[]
 
   @@id([studentId, courseId])
   @@map("enrollments")
@@ -157,4 +159,20 @@ model AuditLog {
 
   @@index([courseId])
   @@map("audit_log")
+}
+
+/// Two independently entered course attestation scores; the average is derived.
+model AttestationResult {
+  studentId Int @map("student_id")
+  courseId Int @map("course_id")
+  attestationNumber Int @map("attestation_number")
+  score Decimal @db.Decimal(5, 2)
+  changedBy String @map("changed_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  enrollment Enrollment @relation(fields: [studentId, courseId], references: [studentId, courseId])
+  user AppUser @relation(fields: [changedBy], references: [id])
+
+  @@id([studentId, courseId, attestationNumber])
+  @@index([courseId])
+  @@map("attestation_results")
 }
