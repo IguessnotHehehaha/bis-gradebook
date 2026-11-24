@@ -1,0 +1,12 @@
+The backup file exists and has a size:
+ls -lh backups/gradebook_local_after_migration.dump
+
+Its archive listing includes gradebook tables and TABLE DATA entries:
+pg_restore --list backups/gradebook_local_after_migration.dump
+
+
+BACKUP SCHEDULER: npm run backup:watch
+
+RESTORE TEST: npm run backup:test-restore
+
+BACKUP ON CLOUD: https://www.dropbox.com/home/bis-backup
